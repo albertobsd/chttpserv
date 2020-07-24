@@ -9,19 +9,25 @@
 
 
 /*
-	custom functions	
+	custom functions
 */
-#include"util.h"
-#include"conf.h"
+#include "util.h"
+#include "conf.h"
 #include "http_headers.h"
 #include "http_request.h"
+#include "http_serve_client.h"
+#include "debug.h"
 
 #define BACKLOG 16
 
-void * procesar_peticion(void *vargp);
+void * thread_process(void *vargp);
+/*
 int read_method(HTTP_REQUEST client_request,char *buffer,int *offset);
 int read_headers(HTTP_REQUEST client_request,char *buffer,int *offset);
 int read_buffer(int fd,char *buffer,int length);
+int check_for_file_and_send(HTTP_REQUEST client_request,int client_fd);
+int send_file(int cliend_fd,char *path);
+*/
 
 int main(int argc,char **argv)	{
 	int index, j = 0,s;
@@ -34,8 +40,11 @@ int main(int argc,char **argv)	{
 	struct in_addr ip;	/* aux in_addr variable		*/
 	int *tothread = NULL;
 	struct sockaddr_in *socketserver;
+	/* END of localvariable declarations 	*/
+	debug_init();
 	memset(&ip,0,sizeof(struct in_addr));
 	read_config();
+	debug_status();
 	while(i < CONFIG_VAR_LENGTH_CONST)	{
 		printf("_CONFIG[%s] = %s\n",variables_config[i],_CONFIG[i]);
 		i++;
@@ -45,7 +54,7 @@ int main(int argc,char **argv)	{
 		return 2;
 	}
 	inet_aton(_CONFIG[IP], &ip);
-	socketserver = calloc(1,sizeof(struct sockaddr_in));
+	socketserver = debug_calloc(1,sizeof(struct sockaddr_in));
 	socketserver->sin_family = AF_INET;
 	socketserver->sin_port   = htons((uint16_t)strtol(_CONFIG[PORT],NULL	,10));
 	socketserver->sin_addr.s_addr = ip.s_addr;
@@ -87,13 +96,13 @@ int main(int argc,char **argv)	{
 			Values to pass to the pthread
 		*/
 		tothread = NULL;
-		tothread = malloc(sizeof(int)*1);
+		tothread = debug_malloc(sizeof(int)*2);
 		if(tothread == NULL)	{
-			perror("malloc");
+			perror("debug_malloc");
 			exit(8);
 		}
 		tothread[0] = clientfd;			/*	Client fd */
-		s = pthread_create(&tid,&attr,procesar_peticion,(void *)tothread);
+		s = pthread_create(&tid,&attr,thread_process,(void *)tothread);
 		if(s != 0)	{
 			perror("pthread_create");
 			exit(9);
@@ -103,130 +112,16 @@ int main(int argc,char **argv)	{
 	return 0;
 }
 
-void * procesar_peticion(void *vargp)	{
+void * thread_process(void *vargp)	{
 	int *aux = (int *)vargp;
-	FILE *client = NULL;
-	int maxrequestsize = 0,offset = 0,realrequestsize = 0;
 	int clientfd = 0,s;
-	char *buffer;
-	HTTP_REQUEST client_request;
 	printf("Procesar Peticion\n");
 	if(aux != NULL)	{
-		clientfd = aux[0];
-		free(aux);
-		client = fdopen(clientfd,"rb+");
-		if(client != NULL)	{
-			maxrequestsize = strtol(_CONFIG[MAXREQUESTSIZE],NULL,10);
-			printf("maxrequestsize :%i \n",maxrequestsize);
-			buffer = (char*) malloc(maxrequestsize);
-			if(buffer == NULL)	{
-				perror("malloc");
-				exit(-1);
-			} 
-			client_request = http_request_init();
-			realrequestsize = read_buffer(clientfd,buffer,maxrequestsize);
-			if(realrequestsize < maxrequestsize)	{
-				buffer = realloc(buffer,realrequestsize+1);
-				if(buffer == NULL)	{
-					perror("realloc");
-					http_request_free(client_request);
-					free(buffer);
-					fclose(client);	
-					close(clientfd);
-					pthread_exit(NULL);
-				}
-			}
-			printf("Leido bytes %i:\n%s\n",realrequestsize,buffer);
-			s = read_method(client_request,buffer,&offset);
-			if(s != 0)	{
-				//Enviar Error
-				http_request_free(client_request);
-				free(buffer);
-				fclose(client);	
-				close(clientfd);
-				pthread_exit(NULL);
-			}
-			printf("Offset: %i\n",offset);
-			s = read_headers(client_request,buffer,&offset);
-			printf("Leido: %s\n",buffer);
-			http_request_free(client_request);
-			fclose(client);	
-		}
-		close(clientfd);
-	}	
+		clientfd =aux[0];
+		debug_free(aux);
+		http_serve_client_do(clientfd);
+	}
+	debug_status();
+	printf("Saliendo!\n");
 	pthread_exit(NULL);
 }
-
-int read_buffer(int fd,char *buffer,int length)	{
-	int offset = 0,readed,toread;
-	if(buffer != NULL)	{
-		do	{
-			toread = (offset+64 < length )  ? 64: length-offset;
-			readed = recv(fd,buffer +offset,64,MSG_DONTWAIT);
-			if(readed >= 0)
-				offset+= readed;
-		}while(readed != -1 && offset <length);
-	}
-	return offset;
-}
-
-int read_method(HTTP_REQUEST client_request,char *buffer,int *offset)	{
-	printf("read_method\n");
-	char *token,*aux = NULL;
-	char *http_tokens[3],*http_token,*http_aux = NULL;
-	int i = 0;
-	int current_offset = (offset != NULL) ? offset[0] : 0;
-	token = strtok_r(buffer + current_offset,"\r\n\t",&aux);
-	if(token != NULL)	{
-		current_offset = strlen(token) + 1;
-		http_token = strtok_r(token," ",&http_aux);
-		while(i < 3 && http_token  != NULL)	{
-			http_tokens[i] = http_token;
-			printf("Token encontrado %i: %s\n",i,http_tokens[i]);
-			http_token = strtok_r(NULL," ",&http_aux);
-			i++;
-		}
-		if(i != 3)	{
-			printf("i != 3\n");
-			client_request->error = 1;
-			return 1;
-		}
-		http_request_set_method(client_request,http_tokens[0]);
-		http_request_set_uri(client_request,http_tokens[1]);
-		http_request_set_version(client_request,http_tokens[2]);
-	}
-	if(offset != NULL){
-		offset[0] = current_offset;
-	}
-	return 0;
-}
-
-int read_headers(HTTP_REQUEST client_request,char *buffer,int *offset)	{
-	printf("read_headers\n");
-	if(client_request == NULL|| offset == NULL || buffer == NULL)	{
-		exit(1);
-	}
-	char *token,*token1, *aux = NULL,*aux1 =NULL;
-	int current_offset = offset[0],length, entrar = 1;
-	printf("current_offset: %i\n",current_offset);
-	printf("%p : %s\n",buffer,buffer + current_offset);
-	client_request->_HEADERS = http_headers_init();
-	token = strtok_r(buffer + current_offset,"\n",&aux);
-	
-	while(entrar && token != NULL)	{
-		/*
-		length = strlen(token);
-		if()
-		*/
-		aux1 = strchr(token,':');
-		if(aux1 == NULL)	{
-			
-		}
-		printf("Header: %s\n",token);
-		
-		token = strtok_r(NULL,"\r\n",&aux);
-	}
-	printf("--read_headers\n");
-	return 0;
-}
-

@@ -1,5 +1,6 @@
 #pragma once
 #include "http_headers.h"
+#include "debug.h"
 
 #define UNKNOW	0
 #define GET		1
@@ -18,8 +19,6 @@ typedef struct STR_HTTP_REQUEST {
 	HTTP_HEADERS _HEADERS;
 	HTTP_HEADERS _GET;
 	HTTP_HEADERS _POST;
-	int error;
-	char *error_str;
 }*HTTP_REQUEST;
 
 
@@ -29,19 +28,22 @@ int http_request_set_version(HTTP_REQUEST hr,char *version);
 int http_request_set_uri(HTTP_REQUEST hr,char *uri);
 int http_request_set_GET_values(HTTP_REQUEST hr,char *get_params);
 void http_request_free(HTTP_REQUEST hr);
+void http_request_info(HTTP_REQUEST hr);
 
 
 char *http_request_supported_method[METHODS_LENGTH] = {"","GET","POST","HEAD"};
 char *http_request_supported_version[VERSIONS_LENGTH] = {"","HTTP/1.0","HTTP/1.1"};
 
 HTTP_REQUEST http_request_init()	{
-	//printf("sizeof(struct STR_HTTP_REQUEST): %i\n",sizeof(struct STR_HTTP_REQUEST));
 	HTTP_REQUEST hr = NULL;
-	hr = (HTTP_REQUEST) calloc(1,sizeof(struct STR_HTTP_REQUEST));
+	hr = (HTTP_REQUEST) debug_calloc(1,sizeof(struct STR_HTTP_REQUEST));
 	if(hr == NULL)	{
-		perror("calloc");
+		perror("debug_calloc");
 		exit(201);
 	}
+	hr->_HEADERS = http_headers_init();
+	hr->_GET = http_headers_init();
+	hr->_POST = http_headers_init();
 	return hr;
 }
 
@@ -104,16 +106,24 @@ int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
 	qmark_ptr = strrchr(uri,'?');
 	if(qmark_ptr != NULL)	{
 		qmark_offset = qmark_ptr -uri;
-		hr->uri = malloc(1 + uri_length - qmark_offset );
+		hr->uri = debug_malloc(2 + uri_length - qmark_offset );
 		memcpy(hr->uri,uri,qmark_offset);
 		hr->uri[qmark_offset] = '\0';
 		ret =  http_request_set_GET_values(hr,uri+qmark_offset+1);
 	}
 	else	{
-		hr->uri = malloc(1 + uri_length);
-		memcpy(hr->uri,uri,uri_length);
-		hr->uri[uri_length] = '\0';
-		ret = 0;
+		if(strcmp(uri,"/") == 0){
+			hr->uri = debug_malloc(14);
+			memcpy(hr->uri,"/index.html",11);
+			hr->uri[11] = '\0';
+			ret = 0;
+		}
+		else	{
+			hr->uri = debug_malloc(2 + uri_length);
+			memcpy(hr->uri,uri,uri_length);
+			hr->uri[uri_length] = '\0';
+			ret = 0;
+		}
 	}
 	//printf("URI: %s\n",hr->uri);
 	return ret;
@@ -144,17 +154,33 @@ int http_request_set_GET_values(HTTP_REQUEST hr,char *get_params)	{
 	return 0;
 }
 
-
 void http_request_free(HTTP_REQUEST hr)	{
-	//printf("http_request_free\n");
+	printf("http_request_free\n");
 	if(hr != NULL)	{
 		if(hr->uri != NULL)	{
-			free(hr->uri);
+			debug_free(hr->uri);
 		}
 		if(hr->_GET != NULL)	{
 			http_headers_free(hr->_GET);
 		}
-		free(hr);
-		
+		if(hr->_HEADERS != NULL)	{
+			http_headers_free(hr->_HEADERS);
+		}
+		if(hr->_POST != NULL)	{
+			http_headers_free(hr->_POST);
+		}
+		debug_free(hr);
+	}
+}
+
+void http_request_info(HTTP_REQUEST hr)	{
+	printf("http_request_info\n");
+	if(hr != NULL)	{
+		printf("method %i\n",hr->method);
+		printf("uri %s\n",hr->uri);
+		printf("version %i\n",hr->version);
+		http_headers_info(hr->_HEADERS);
+		http_headers_info(hr->_GET);
+		http_headers_info(hr->_POST);
 	}
 }

@@ -1,8 +1,8 @@
-#pragma once	
-#include "util.h"
+#pragma once
 #include <limits.h>
 #include <stdlib.h>
-
+#include "util.h"
+#include "debug.h"
 
 
 #define CONFIG_VAR_LENGTH_CONST 12
@@ -42,7 +42,7 @@ int read_config()	{
 	else	{
 		int line_length = 0,key_length = 0, value_length = 0,index_temp = 0;
 		char *line = NULL,*aux,*key = NULL,*value = NULL;
-		line = (char*) malloc(1024);
+		line = (char*) debug_malloc(1024);
 		while(fgets(line,1024,config) != NULL && !feof(config))	{
 			trim(line,NULL);
 			line_length = strlen(line);
@@ -53,11 +53,12 @@ int read_config()	{
 					value_length = line_length-key_length - 1 ;
 					/*
 					printf("Line with value: %s\n",line);
-					printf("%i - %i\n",key_length,value_length);
+
 					*/
+					//printf("%i - %i\n",key_length,value_length);
 					if(key_length > 0 && value_length > 0)	{
-						key = (char*) calloc(key_length+1,1);
-						value = (char*) calloc(value_length+1,1);
+						key = (char*) debug_calloc(key_length+1,1);
+						value = (char*) debug_calloc(value_length+1,1);
 						memcpy(key,line,key_length);
 						memcpy(value,aux+1,value_length);
 						trim(key,NULL);
@@ -68,17 +69,18 @@ int read_config()	{
 						*/
 						if((index_temp = index_of(variables_config,CONFIG_VAR_LENGTH_CONST,key)) >= 0){
 							//printf("Key found [%s] index %i : %s\n",key,index_temp,variables_config[index_temp]);
-							found_config[index_temp] = 1;							
+							found_config[index_temp] = 1;
 							_CONFIG[index_temp] = value;
+							debug_free(key);
 						}
 						else	{
-							free(key);
-							free(value);
-							//printf("Ignoring line with unexpected key: %s\n",line);	
+							debug_free(key);
+							debug_free(value);
+							//printf("Ignoring line with unexpected key: %s\n",line);
 						}
 					}
 					else	{
-						//printf("Ignoring line without value or key: %s\n",line);	
+						//printf("Ignoring line without value or key: %s\n",line);
 					}
 				}
 				else	{
@@ -89,7 +91,7 @@ int read_config()	{
 				//printf("Ignored comment line: %s\n",line);
 			}
 		}
-		free(line);
+		debug_free(line);
 		fclose(config);
 		while(i < CONFIG_VAR_LENGTH_CONST)	{
 			if(found_config[i] == 0)	{
@@ -98,6 +100,7 @@ int read_config()	{
 			i++;
 		}
 	}
+
 	_CONFIG[PATH] = realpath(_CONFIG[PATH],NULL);
 	return 0;
 }
