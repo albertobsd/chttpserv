@@ -30,7 +30,6 @@ int http_request_set_GET_values(HTTP_REQUEST hr,char *get_params);
 void http_request_free(HTTP_REQUEST hr);
 void http_request_info(HTTP_REQUEST hr);
 
-
 char *http_request_supported_method[METHODS_LENGTH] = {"","GET","POST","HEAD"};
 char *http_request_supported_version[VERSIONS_LENGTH] = {"","HTTP/1.0","HTTP/1.1"};
 

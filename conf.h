@@ -68,7 +68,7 @@ int read_config()	{
 						printf("Value : %s\n",value);
 						*/
 						if((index_temp = index_of(variables_config,CONFIG_VAR_LENGTH_CONST,key)) >= 0){
-							//printf("Key found [%s] index %i : %s\n",key,index_temp,variables_config[index_temp]);
+							//	printf("Key found [%s] index %i : %s\n",key,index_temp,variables_config[index_temp]);
 							found_config[index_temp] = 1;
 							_CONFIG[index_temp] = value;
 							debug_free(key);

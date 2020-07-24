@@ -114,10 +114,10 @@ int main(int argc,char **argv)	{
 
 void * thread_process(void *vargp)	{
 	int *aux = (int *)vargp;
-	int clientfd = 0,s;
+	int clientfd = 0, s;
 	printf("Procesar Peticion\n");
 	if(aux != NULL)	{
-		clientfd =aux[0];
+		clientfd = aux[0];
 		debug_free(aux);
 		http_serve_client_do(clientfd);
 	}

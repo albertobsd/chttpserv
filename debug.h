@@ -42,7 +42,6 @@ void* debug_malloc(size_t size)	{
 
 void* debug_calloc(size_t nmemb,size_t size)	{
 	int length =nmemb * size;
-//wzPUXG2kFPprZwJrsBxVWCUN0IRz7CmoOw5yXeirMQqTjYtv4uHHlnWfGgd8SBXMuZXZlnryzg0xaDhd
 	void *ptr = NULL;
 	ptr = malloc(length + 10);
 	if(ptr != NULL) 	{

@@ -98,7 +98,6 @@ int http_serve_read_method(HTTP_SERVE_CLIENT hsc) {
 	return 0;
 }
 
-
 int http_serve_client_process(HTTP_SERVE_CLIENT hsc)  {
   printf("http_serve_client_process\n");
   int s ;
