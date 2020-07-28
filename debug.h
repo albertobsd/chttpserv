@@ -19,7 +19,9 @@ void debug_add(void *ptr,int length);
 int debug_remove(void *ptr);
 void debug_status();
 void debug_list();
+char *debug_tohex(char *ptr,int length);
 
+int debug_enable_verbose = 0;
 
 void **debug_ptr = NULL;
 int *debug_ptr_sizes = NULL;
@@ -30,51 +32,64 @@ int *debug_valores = NULL;
  */
 void* debug_malloc(size_t size)	{
 	void *ptr = NULL;
-	ptr =  malloc(size +10);
+	pthread_mutex_lock(&debug_lock);
+	//printf("pthread_mutex_lock\n");
+	ptr =  malloc(size+10);
 	if(ptr != NULL)	{
 		debug_add(ptr,size);
 	}
 	else	{
 		perror("malloc");
 	}
+		//printf("pthread_mutex_unlock\n");
+	pthread_mutex_unlock(&debug_lock);
 	return ptr;
 }
 
-void* debug_calloc(size_t nmemb,size_t size)	{
-	int length =nmemb * size;
+void* debug_calloc(size_t nmemb,size_t size	)	{
+	pthread_mutex_lock(&debug_lock);
+	//printf("pthread_mutex_lock\n");
 	void *ptr = NULL;
-	ptr = malloc(length + 10);
+	ptr = calloc(nmemb,size);
 	if(ptr != NULL) 	{
-		debug_add(ptr,length);
-		memset(ptr,0,length);
+		debug_add(ptr,nmemb*size);
 	}
 	else	{
 		perror("calloc");
 	}
+	//printf("pthread_mutex_unlock\n");
+	pthread_mutex_unlock(&debug_lock);
 	return ptr;
 }
 
 void* debug_realloc(void* ptr,size_t size)	{
 	void *ptr_new = NULL;
+	pthread_mutex_lock(&debug_lock);
+	//printf("pthread_mutex_lock\n");
 	ptr_new = realloc(ptr,size + 10);
 	if(ptr_new != NULL)	{
 			debug_remove(ptr);
 			debug_add(ptr_new,size);
-	}else	{
+	}
+	else	{
 		perror("realloc");
 	}
+	//printf("pthread_mutex_unlock\n");
+	pthread_mutex_unlock(&debug_lock);
 	return ptr_new;
 }
 
 void debug_free(void *ptr)	{
-	if(ptr)	{
-		if(debug_remove(ptr) == 0)
+	pthread_mutex_lock(&debug_lock);
+	if(ptr != NULL)	{
+		if(debug_remove(ptr) == 0)	{
 			free(ptr);
+		}
 	}
+	pthread_mutex_unlock(&debug_lock);
 }
 
 void debug_add(void *ptr,int length)	{
-	pthread_mutex_lock(&debug_lock);
 	if(debug_valores[DEBUG_INDEX] >= debug_valores[DEBUG_ITEMS_MAX])	{
 		debug_valores[DEBUG_ITEMS_MAX]*=2;
 		debug_ptr = (void**)realloc((void*)debug_ptr,debug_valores[DEBUG_ITEMS_MAX]*sizeof(char*));
@@ -84,11 +99,11 @@ void debug_add(void *ptr,int length)	{
 	debug_ptr_sizes[debug_valores[DEBUG_INDEX]] = length;
 	debug_valores[DEBUG_MEMORY]+=length;
 	debug_valores[DEBUG_ITEMS]++;
-	if(debug_valores[DEBUG_INDEX] % 20 == 0)	{
+	if(debug_valores[DEBUG_INDEX] % 128 == 0)	{
 		debug_optimizar();
 	}
 	debug_valores[DEBUG_INDEX]++;
-	pthread_mutex_unlock(&debug_lock);
+	if(debug_enable_verbose == 1 ) printf("debug_add: %p : %i\n",ptr,length);
 }
 
 /*
@@ -99,7 +114,8 @@ int debug_remove(void *ptr)	{
 	int ret = 0;
 	int i = 0;
 	int encontrado = 0;
-	pthread_mutex_lock(&debug_lock);
+	char *hex;
+	if(debug_enable_verbose == 1 ) printf("debug_remove: %p\n",ptr);
 	while( !encontrado && i < debug_valores[DEBUG_INDEX] )	{
 		if(ptr == debug_ptr[i])	{
 			encontrado = 1;
@@ -111,10 +127,11 @@ int debug_remove(void *ptr)	{
 		i++;
 	}
 	if(encontrado == 0)	{
-		printf("Pointer not found 0x%p \nMay be you missing change some malloc, calloc realloc?\nOr pointer previously release\n",ptr	);
+		printf("Pointer not found %p \nMay be you missing change some malloc, calloc realloc?\nOr pointer previously release\n",ptr	);
+		debug_list();
+		exit(0);
 		ret = 1;
 	}
-	pthread_mutex_unlock(&debug_lock);
 	return ret;
 }
 
@@ -152,21 +169,11 @@ void debug_status()	{
 	pthread_mutex_lock(&debug_lock);
 	printf("Current memory Allocated: %i bytes\n",debug_valores[DEBUG_MEMORY]);
 	printf("Current total chunks used : %i\n",debug_valores[DEBUG_ITEMS]);
-	/*
-	while(i < debug_valores[DEBUG_INDEX])	{
-		if(debug_ptr[i] != NULL)	{
-			printf("%i:  ptr: %p , size %i , value %s\n",j,debug_ptr[i],debug_ptr_sizes[i],debug_ptr[i]);
-			j++;
-		}
-		i++;
-	}
-	*/
 	pthread_mutex_unlock(&debug_lock);
 }
 
 void debug_list()	{
 	int i = 0,j = 0;
-	pthread_mutex_lock(&debug_lock);
 	while(i < debug_valores[DEBUG_INDEX])	{
 		if(debug_ptr[i] != NULL)	{
 			printf("%i:  ptr: %p , size %i , value %s\n",j,debug_ptr[i],debug_ptr_sizes[i],debug_ptr[i]);
@@ -174,5 +181,23 @@ void debug_list()	{
 		}
 		i++;
 	}
-	pthread_mutex_unlock(&debug_lock);
+}
+
+char *debug_tohex(char *ptr,int length)	{
+	char *buffer;
+  int offset = 0;
+  unsigned char c;
+  buffer = (char *) malloc((length * 2)+1);
+	if(buffer !=NULL)	{
+	  for (int i = 0; i <length; i++) {
+	    c = ptr[i];
+			sprintf(buffer + offset,"%.2x",c);
+			offset+=2;
+	  }
+		buffer[length*2] = '\0';
+	}
+	else{
+		perror("debug_tohex:malloc");
+	}
+  return buffer;
 }

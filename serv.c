@@ -7,33 +7,26 @@
 #include<unistd.h>
 #include<stdio.h>
 
-
 /*
 	custom functions
 */
 #include "util.h"
-#include "conf.h"
 #include "http_headers.h"
 #include "http_request.h"
 #include "http_serve_client.h"
+#include "http_serve_conf.h"
 #include "debug.h"
 
 #define BACKLOG 16
 
 void * thread_process(void *vargp);
-/*
-int read_method(HTTP_REQUEST client_request,char *buffer,int *offset);
-int read_headers(HTTP_REQUEST client_request,char *buffer,int *offset);
-int read_buffer(int fd,char *buffer,int length);
-int check_for_file_and_send(HTTP_REQUEST client_request,int client_fd);
-int send_file(int cliend_fd,char *path);
-*/
 
 int main(int argc,char **argv)	{
 	int index, j = 0,s;
 	pthread_attr_t attr;
 	pthread_t tid;
 	int i = 0;			/* Generic counter			*/
+	int c = 0 ;		/* client couner	*/
 	int servfd = 0;		/* Server file descriptor	*/
 	int	clientfd = 0;	/* Client file descriptor	*/
 	int b;				/* Size of socketserver		*/
@@ -42,13 +35,10 @@ int main(int argc,char **argv)	{
 	struct sockaddr_in *socketserver;
 	/* END of localvariable declarations 	*/
 	debug_init();
+	http_serve_default_errors();	/*	Init default Error messages*/
 	memset(&ip,0,sizeof(struct in_addr));
-	read_config();
+	server_config = http_serve_conf_init();
 	debug_status();
-	while(i < CONFIG_VAR_LENGTH_CONST)	{
-		printf("_CONFIG[%s] = %s\n",variables_config[i],_CONFIG[i]);
-		i++;
-	}
 	if ((servfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("socket");
 		return 2;
@@ -64,9 +54,9 @@ int main(int argc,char **argv)	{
 		perror("bind");
 		exit(3);
 	}
+	b = sizeof(socketserver);
 	listen(servfd, BACKLOG);
 	while(1)	{
-		b = sizeof(socketserver);
 		if((clientfd = accept(servfd,(struct sockaddr *)socketserver, &b)) < 0) {
 			perror("accept");
 			exit(5);
@@ -102,26 +92,36 @@ int main(int argc,char **argv)	{
 			exit(8);
 		}
 		tothread[0] = clientfd;			/*	Client fd */
+		tothread[1] = c;
 		s = pthread_create(&tid,&attr,thread_process,(void *)tothread);
 		if(s != 0)	{
 			perror("pthread_create");
-			exit(9);
 		}
 		pthread_attr_destroy(&attr);
+		c++;
 	}
+	printf("Saliendo\n");
 	return 0;
 }
 
+/*
+ *  Main thread process,
+ *  vargp  is a pointer passed from	pthread_create function.
+ *	It contains a pointer to int* array now with just one item
+ *	(int*) vargp [0] client socket file descriptor
+ */
 void * thread_process(void *vargp)	{
 	int *aux = (int *)vargp;
-	int clientfd = 0, s;
-	printf("Procesar Peticion\n");
+	int clientfd = 0, s,clientcouner = 0;
 	if(aux != NULL)	{
 		clientfd = aux[0];
-		debug_free(aux);
-		http_serve_client_do(clientfd);
+		clientcouner = aux[1];
+		debug_free(vargp);
+		/*	free the vargp pointer is no longer needed because
+		we already save the clienfd*/
+		http_serve_client_do(clientfd,clientcouner);
 	}
 	debug_status();
-	printf("Saliendo!\n");
+	printf("Saliendo\n");
 	pthread_exit(NULL);
 }

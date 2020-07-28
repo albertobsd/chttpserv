@@ -1,2 +1,15 @@
 get_petition.txt
 t1.c
+fuzzer.c
+public/LICENSE
+public/README.md
+public/css/
+public/gulpfile.js
+public/img/
+public/js/
+public/mp4/
+public/package-lock.json
+public/package.json
+public/scss/
+public/test
+public/vendor/

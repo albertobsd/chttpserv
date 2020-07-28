@@ -9,27 +9,30 @@ typedef struct STR_HTTP_HEADERS {
 }*HTTP_HEADERS;
 
 HTTP_HEADERS http_headers_init();
-void http_headers_add(HTTP_HEADERS hh,char *key,char *value);
+int http_headers_add(HTTP_HEADERS hh,char *key,char *value);
 char *http_headers_get_value(HTTP_HEADERS hh, char *key);
 void http_headers_set_value_index(HTTP_HEADERS hh,int index, char *value);
 void http_headers_increment_max_length(HTTP_HEADERS hh);
 void http_headers_free(HTTP_HEADERS hh);
 void http_headers_info(HTTP_HEADERS hh);
 
+int http_headers_enable_debug = 0;
+
 HTTP_HEADERS http_headers_init()	{
+	if( http_headers_enable_debug == 1 ) printf("http_headers_init\n");
 	HTTP_HEADERS hh = NULL;
 	hh = (HTTP_HEADERS) debug_calloc(1,sizeof(struct STR_HTTP_HEADERS));
 	if(hh == NULL)	{
 		perror("debug_calloc");
-		exit(101);
 	}
-	hh->length = 0;
-	hh->max_length = 2;
-	hh->keys = (char **) debug_calloc(hh->max_length+1,sizeof(char**));
-	hh->values = (char **) debug_calloc(hh->max_length+1,sizeof(char**));
-	if(hh->keys == NULL || hh->values ==NULL )	{
-		perror("debug_calloc");
-		exit(102);
+	else	{
+		hh->length = 0;
+		hh->max_length = 2;
+		hh->keys = (char **) debug_calloc(hh->max_length+1,sizeof(char**));
+		hh->values = (char **) debug_calloc(hh->max_length+1,sizeof(char**));
+		if(hh->keys == NULL || hh->values ==NULL )	{
+			perror("debug_calloc");
+		}
 	}
 	return hh;
 }
@@ -39,67 +42,71 @@ HTTP_HEADERS http_headers_init()	{
  *  if key already exist, his current value is going to be overwriting
  *  the current params key,value are copied in internal struct and are no longer need you can FREE them without worries
  */
-void http_headers_add(HTTP_HEADERS hh,char *key,char *value)	{
-	printf("http_headers_add\n");
+int http_headers_add(HTTP_HEADERS hh,char *key,char *value)	{
+	if( http_headers_enable_debug == 1 ) printf("http_headers_add\n");
+	int ret = 0;
 	int i = 0,entrar  = 1;
 	int key_length = 0;
 	int value_length = 0;
-	if(hh == NULL || key == NULL || value == NULL)	{
+	if(hh == NULL || hh->keys == NULL || hh->values == NULL || key == NULL || value == NULL)	{
 		fprintf(stderr,"Some value is NULL\n");
-		exit(102);
-	}
-	if(hh->length == hh->max_length)	{
-		http_headers_increment_max_length(hh);
-	}
-	while(entrar && i < hh->length)	{
-		if(strcmp(key,hh->keys[i]) == 0)	{
-			entrar = 0;
-			i--;
-		}
-		i++;
-	}
-	if(entrar)	{
-		key_length = strlen(key);
-		value_length = strlen(value);
-		printf("K_l:%i , V_l:%i\n",key_length,value_length);
-		printf("34\n");
-		hh->keys[hh->length] = (char*) debug_malloc(key_length + 2);
-		printf("35\n");
-		hh->values[hh->length] = (char*) debug_malloc(value_length + 2);
-		printf("k_ptr :  %p, v_ptr : %p\n",hh->keys[hh->length],hh->values[hh->length]);
-		memcpy(hh->keys[hh->length],key,key_length);
-		memcpy(hh->values[hh->length],value,value_length);
-		printf("36\n");
-		hh->keys[hh->length][key_length] = '\0';
-		hh->values[hh->length][value_length] = '\0';
-		hh->length++;
+		ret = -1;
 	}
 	else	{
-		http_headers_set_value_index(hh,i,value);
+		if(hh->length == hh->max_length)	{
+			http_headers_increment_max_length(hh);
+		}
+		while(entrar && i < hh->length)	{
+			if(strcmp(key,hh->keys[i]) == 0)	{
+				entrar = 0;
+				i--;
+			}
+			i++;
+		}
+		if(entrar)	{
+			key_length = strlen(key);
+			value_length = strlen(value);
+			if( http_headers_enable_debug == 1 ) printf("K_l:%i , V_l:%i\n",key_length,value_length);
+			hh->keys[hh->length] = (char*) debug_malloc(key_length + 2);
+			hh->values[hh->length] = (char*) debug_malloc(value_length + 2);
+			if( http_headers_enable_debug == 1 ) printf("k_ptr :  %p, v_ptr : %p\n",hh->keys[hh->length],hh->values[hh->length]);
+			memcpy(hh->keys[hh->length],key,key_length);
+			memcpy(hh->values[hh->length],value,value_length);
+			hh->keys[hh->length][key_length] = '\0';
+			hh->values[hh->length][value_length] = '\0';
+			hh->length++;
+		}
+		else	{
+			http_headers_set_value_index(hh,i,value);
+		}
 	}
+	return ret;
 }
 
 char *http_headers_get_value(HTTP_HEADERS hh, char *key)	{
+	if( http_headers_enable_debug == 1 ) printf("http_headers_get_value\n");
 	char *ret = NULL;
 	int i = 0,entrar = 1;
 	if(hh == NULL || key == NULL)	{
-		fprintf(stderr,"Some value is NULL\n");
-		exit(102);
+		fprintf(stderr,"http_headers_get_value(): Some value is NULL\n");
 	}
-	while(entrar && i < hh->length)	{
-		if(strcmp(key,hh->keys[i]) == 0)	{
-			i--;
-			entrar = 0;
+	else	{
+		while(entrar && i < hh->length)	{
+			if(strcmp(key,hh->keys[i]) == 0)	{
+				i--;
+				entrar = 0;
+			}
+			i++;
 		}
-		i++;
-	}
-	if(entrar == 0)	{
-		ret = hh->values[i];
+		if(entrar == 0)	{
+			ret = hh->values[i];
+		}
 	}
 	return ret;
 }
 
 void http_headers_set_value_index(HTTP_HEADERS hh,int index, char *value)	{
+	if( http_headers_enable_debug == 1 ) printf("http_headers_set_value_index\n");
 	int value_length = 0;
 	if(hh == NULL || value == NULL)	{
 		fprintf(stderr,"Some value is NULL\n");
@@ -123,7 +130,10 @@ void http_headers_increment_max_length(HTTP_HEADERS hh)	{
 }
 
 void http_headers_free(HTTP_HEADERS hh)	{
-	printf("http_headers_free\n");
+	if( http_headers_enable_debug == 1 ) {
+		printf("http_headers_free\n");
+		http_headers_info(hh);
+	}
 	int i = 0;
 	if(hh != NULL )	{
 		if(hh->keys != NULL && hh->values != NULL){

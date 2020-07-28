@@ -66,7 +66,7 @@ char *tohex(char *ptr,int length){
 		sprintf(buffer + offset,"%.2x",c);
 		offset+=2;
   }
-	buffer[length] = 0;
+	buffer[length*2] = 0;
   return buffer;
 }
 

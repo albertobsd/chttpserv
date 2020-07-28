@@ -1,71 +1,168 @@
 #pragma once
+#include <errno.h>
+#include <unistd.h>
 #include "util.h"
 #include "conf.h"
 #include "http_headers.h"
 #include "http_request.h"
+#include "http_serve_conf.h"
 #include "debug.h"
 
 typedef struct STR_HTTP_SERVE_CLIENT {
 	int client_fd;
+	FILE *client;
   char *buffer;
 	HTTP_REQUEST client_request;
   HTTP_HEADERS headers_to_be_send;
+  char *flag_error;
   int offset;
-  int flag_error;
   int maxrequestsize;
   int realrequestsize;
+	int counter;
 }*HTTP_SERVE_CLIENT;
 
-HTTP_SERVE_CLIENT http_serve_client_init(int cliend_fd);
+HTTP_HEADERS default_errors;
+int http_serve_enable_debug = 0;
+
+HTTP_SERVE_CLIENT http_serve_client_init(int client_fd,int counter);
 int http_serve_client_process(HTTP_SERVE_CLIENT hsc);
-void http_serve_client_free(HTTP_SERVE_CLIENT hsc);
-void http_serve_client_do(int cliend_fd);
-int http_serve_read_buffer(HTTP_SERVE_CLIENT hsc);
 int http_serve_read_method(HTTP_SERVE_CLIENT hsc);
 int http_serve_send_file(HTTP_SERVE_CLIENT hsc,char *path);
 int http_serve_check_and_send(HTTP_SERVE_CLIENT hsc);
 int http_serve_read_headers(HTTP_SERVE_CLIENT hsc);
-char *http_serve_nextline(HTTP_SERVE_CLIENT hsc);
+int http_serve_default_errors();
+void http_serve_client_send_error_failback(char *error,int fd);
+void http_serve_client_free(HTTP_SERVE_CLIENT hsc);
+void http_serve_client_do(int client_fd,int counter);
 void http_serve_info(HTTP_SERVE_CLIENT hsc);
+void http_serve_client_send_error(HTTP_SERVE_CLIENT hsc);
+char *http_serve_nextline(HTTP_SERVE_CLIENT hsc);
 
-void http_serve_client_do(int cliend_fd)  {
-  printf("http_serve_client_do\n");
-  HTTP_SERVE_CLIENT hsc = http_serve_client_init( cliend_fd);
+#define HTTP_ERROR_LENGTH 40
+
+int http_serve_default_errors()	{
+	char *base = "HTTP/1.1 %s\r\nConnection: close\r\n\r\n<html><head><title>%s</title></head><body><h1>%s</h1></body></html>\n";
+	char *error_number[HTTP_ERROR_LENGTH] = {"400","401","402","403","404","405","406","407","408","409","410","411","412","413","414","415","416","417","418","421","422","423","424","425","426","428","429","431","451",	"500","501","502","503","504","505","506","507","508","510","511"};
+	char *error_strings[HTTP_ERROR_LENGTH] = {
+		"400 Bad Request",
+		"401 Unauthorized",
+		"402 Payment Required",
+		"403 Forbidden",
+		"404 Not Found",
+		"405 Method Not Allowed",
+		"406 Not Acceptable",
+		"407 Proxy Authentication Required",
+		"408 Request Timeout",
+		"409 Conflict",
+		"410 Gone",
+		"411 Length Required",
+		"412 Precondition Failed",
+		"413 Payload Too Large",
+		"414 URI Too Long",
+		"415 Unsupported Media Type",
+		"416 Range Not Satisfiable",
+		"417 Expectation Failed",
+		"418 I'm a teapot",
+		"421 Misdirected Request",
+		"422 Unprocessable Entity",
+		"423 Locked",
+		"424 Failed Dependency",
+		"425 Too Early",
+		"426 Upgrade Required",
+		"428 Precondition Required",
+		"429 Too Many Requests",
+		"431 Request Header Fields Too Large",
+		"451 Unavailable For Legal Reasons",
+		"500 Internal Server Error",
+		"501 Not Implemented",
+		"502 Bad Gateway",
+		"503 Service Unavailable",
+		"504 Gateway Timeout",
+		"505 HTTP Version Not Supported",
+		"506 Variant Also Negotiates",
+		"507 Insufficient Storage",
+		"508 Loop Detected",
+		"510 Not Extended",
+		"511 Network Authentication Required"};
+	char temp[1024];
+	int i = 0;
+	default_errors = http_headers_init();
+	while(i < HTTP_ERROR_LENGTH)	{
+		memset(temp,0,1024);
+		snprintf(temp,1024,base,error_strings[i],error_strings[i],error_strings[i]);
+		http_headers_add(default_errors,error_number[i],temp);
+		i++;
+	}
+}
+
+void http_serve_client_do(int client_fd,int counter)  {
+	if( http_serve_enable_debug == 1 ) printf("%i : http_serve_client_do\n",counter);
+  HTTP_SERVE_CLIENT hsc = http_serve_client_init( client_fd,counter);
   http_serve_client_process(hsc) ;
   http_serve_client_free(hsc);
 }
 
-HTTP_SERVE_CLIENT http_serve_client_init(int cliend_fd)  {
-  printf("http_serve_client_init\n");
-  HTTP_SERVE_CLIENT hsc = debug_calloc(1,sizeof(struct STR_HTTP_SERVE_CLIENT));
-  if(hsc == NULL)  {
-    perror("debug_calloc");
-    exit(0);
-  }
-  hsc->client_fd = cliend_fd;
-  hsc->client_request = http_request_init();
-  hsc->headers_to_be_send = http_headers_init();
-  hsc->maxrequestsize = strtol(_CONFIG[MAXREQUESTSIZE],NULL,10);
-  hsc->buffer = (char*) debug_malloc(hsc->maxrequestsize+1);
-  if(hsc->buffer == NULL)	{
-    perror("debug_malloc");
-    exit(-1);
-  }
-  return hsc;
+void http_serve_client_send_error_failback(char *error,int fd)	{
+	if( http_serve_enable_debug == 1 ) printf("%i : http_serve_client_send_error_failback\n");
+	char *reply = NULL;
+	reply = http_headers_get_value(default_errors,error);
+	if(reply != NULL)	{
+		dprintf(fd,reply);
+	}
+	else	{
+		dprintf(fd,"HTTP/1.1 500 Internal Server Error\r\n\r\n<html><head><title>500 Internal Server Error</title></head><body><h1>500 Internal Server Error</h1></body></html>");
+	}
+	debug_status();
+	pthread_exit(NULL);
 }
 
-int http_serve_read_buffer(HTTP_SERVE_CLIENT hsc) {
-  printf("http_serve_read_buffer\n");
-  int offset = 0,readed,toread;
-	if(hsc->buffer != NULL)	{
-		do	{
-			toread = (offset+64 < hsc->maxrequestsize )  ? 64: hsc->maxrequestsize-offset;
-			readed = recv(hsc->client_fd,hsc->buffer +offset,64,MSG_DONTWAIT);
-			if(readed > 0)
-				offset+= readed;
-		}while(readed > 0 && offset < hsc->maxrequestsize);
+void http_serve_client_send_error(HTTP_SERVE_CLIENT hsc)	{
+	if( http_serve_enable_debug == 1 ) printf("%i : http_serve_client_send_error\n",hsc->counter);
+	char *reply =NULL;
+	if(hsc != NULL)	{
+		if(http_serve_enable_debug == 1 ) printf("%i : http_serve_client_send_error %s\n",hsc->counter,hsc->flag_error);
+		reply = http_headers_get_value(default_errors,hsc->flag_error);
+		if(reply != NULL)	{
+			dprintf(hsc->client_fd,reply);
+		}
+		else	{
+			dprintf(hsc->client_fd,"HTTP/1.1 500 Internal Server Error\r\n\r\n<html><head><title>500 Internal Server Error</title></head><body><h1>500 Internal Server Error</h1></body></html>");
+		}
 	}
-	return offset;
+	http_serve_client_free(hsc);
+	debug_status();
+	printf("Saliendo 2\n");
+	pthread_exit(NULL);
+}
+
+HTTP_SERVE_CLIENT http_serve_client_init(int client_fd,int counter)  {
+	if(http_serve_enable_debug == 1 ) printf("%i : http_serve_client_init\n",counter);
+  HTTP_SERVE_CLIENT hsc = debug_calloc(1,sizeof(struct STR_HTTP_SERVE_CLIENT));
+  if(hsc == NULL)  {
+		perror("debug_calloc");
+		http_serve_client_send_error_failback("500",client_fd);
+  }
+  hsc->client_fd = client_fd;
+	hsc->client = fdopen(hsc->client_fd,"rb+");
+	hsc->counter = counter;
+  hsc->client_request = http_request_init();
+	if(hsc->client_request == NULL)	{
+		hsc->flag_error = "500";
+		http_serve_client_send_error(hsc);
+	}
+  hsc->headers_to_be_send = http_headers_init();
+	if(hsc->headers_to_be_send == NULL)	{
+		hsc->flag_error = "500";
+		http_serve_client_send_error(hsc);
+	}
+
+  hsc->buffer = (char*) debug_malloc(server_config->maxrequestsize);
+  if(hsc->buffer == NULL)	{
+    perror("debug_malloc");
+		hsc->flag_error = "500";
+    http_serve_client_send_error(hsc);
+  }
+  return hsc;
 }
 
 /*
@@ -73,166 +170,205 @@ int http_serve_read_buffer(HTTP_SERVE_CLIENT hsc) {
  *	3 tokens separate by spaces are expected
  */
 int http_serve_read_method(HTTP_SERVE_CLIENT hsc) {
-  printf("http_serve_read_method\n");
-  char *token,*aux = NULL;
+	if(http_serve_enable_debug == 1 ) printf("%i : http_serve_read_method\n",hsc->counter);
+	int ret = 0,s;
+  char *token,*aux = NULL,*line;
 	char *http_tokens[3],*http_token,*http_aux = NULL;
 	int i = 0;	/*	Token number*/
-	int current_offset =  0;
-	token = strtok_r(hsc->buffer + current_offset,"\r\n\t",&aux);
-	if(token != NULL)	{
-		current_offset = strlen(token) + 2;
-		http_token = strtok_r(token," ",&http_aux);
-		while(i < 3 && http_token  != NULL)	{
-			http_tokens[i] = http_token;
-			http_token = strtok_r(NULL," ",&http_aux);
-			i++;
-		}
-		if(i != 3)	{
-			return 1;
-		}
-		http_request_set_method(hsc->client_request,http_tokens[0]);
-		http_request_set_uri(hsc->client_request,http_tokens[1]);
-		http_request_set_version(hsc->client_request,http_tokens[2]);
+	line = http_serve_nextline(hsc);
+	token = line;
+	http_token = strtok_r(token," ",&http_aux);
+	while(i < 3 && http_token  != NULL)	{
+		http_tokens[i] = http_token;
+		http_token = strtok_r(NULL," ",&http_aux);
+		i++;
 	}
-  hsc->offset = current_offset;
-	return 0;
+	if(i != 3)	{
+		hsc->flag_error = "400";
+		ret = 1;
+	}
+	else	{
+		s = http_request_set_method(hsc->client_request,http_tokens[0]);
+		//printf("hsc->client_request->method: %i\n",hsc->client_request->method);
+		if(s != 0	){
+			hsc->flag_error = "405";
+			ret = 1;
+		}
+		else{
+			s = http_request_set_uri(hsc->client_request,http_tokens[1]);
+			if(s != 0	){
+				hsc->flag_error = "500";
+				ret = 1;
+			}
+			s = http_request_set_version(hsc->client_request,http_tokens[2]);
+			if(s != 0	){
+				hsc->flag_error = "405";
+				ret = 1;
+			}
+		}
+	}
+	debug_free(line);
+	return ret;
 }
 
 int http_serve_client_process(HTTP_SERVE_CLIENT hsc)  {
-  printf("http_serve_client_process\n");
+	if(http_serve_enable_debug == 1 ) printf("%i : http_serve_client_process\n",hsc->counter);
   int s ;
-  hsc->realrequestsize = http_serve_read_buffer(hsc);
-  if(hsc->realrequestsize < hsc->maxrequestsize)	{
-    hsc->buffer = debug_realloc(hsc->buffer,hsc->realrequestsize+2);
-    if(hsc->buffer == NULL)	{
-      hsc->flag_error = 500;
-    }
-  }
   s = http_serve_read_method(hsc);
-  if(s != 0)	{
-    hsc->flag_error = 400;
+  if(s != 0 || hsc->client_request->method == 0)	{
+    http_serve_client_send_error(hsc);
   }
   s = http_serve_read_headers(hsc);
   if(s != 0)	{
-    hsc->flag_error = 500;
+    http_serve_client_send_error(hsc);
   }
+	hsc->buffer = debug_realloc(hsc->buffer,hsc->offset +1);
   s = http_serve_check_and_send(hsc);
   if(s != 0)	{
-    hsc->flag_error = 500;
+    http_serve_client_send_error(hsc);
   }
-  printf("END http_serve_client_process\n");
 }
 
 int http_serve_check_and_send(HTTP_SERVE_CLIENT hsc)  {
-  printf("http_serve_check_and_send\n");
+	if(http_serve_enable_debug == 1 ) printf("%i : http_serve_check_and_send\n",hsc->counter);
+	int ret = 0;
   char *resolved_path = debug_malloc(PATH_MAX);
 	char *full_path = debug_malloc(PATH_MAX);
-	int n = 0,length_dir_path;
-	length_dir_path = strlen(_CONFIG[PATH]);
-	n = snprintf(full_path,4096,"%s%s",_CONFIG[PATH],hsc->client_request->uri);
+	int n = 0;
+	n = snprintf(full_path,4096,"%s%s",server_config->path,hsc->client_request->uri);
 	if(n >= 0)	{
 		full_path = debug_realloc(full_path,n +2 );
 	}
 	realpath(full_path,resolved_path);
-	printf("Archivo solicitado: %s\n",full_path);
-	printf("Real path: %s\n",resolved_path	);
-	if(strncmp(resolved_path,_CONFIG[PATH],length_dir_path) == 0)	{
+	//printf("Archivo solicitado: %s\n",full_path);
+	//printf("Real path: %s\n",resolved_path	);
+	if(strncmp(resolved_path,server_config->path,server_config->pathlength) == 0)	{
 		if(is_regular_file(resolved_path)){
-			printf("OK : is_regular_file\n");
+			//printf("OK : is_regular_file\n");
 			dprintf(hsc->client_fd,"HTTP/1.1 200 OK\r\n");
+			dprintf(hsc->client_fd,"Content-Length: %i\r\n",fsize(resolved_path));
+			dprintf(hsc->client_fd,"Connection: close\r\n");
+			dprintf(hsc->client_fd,"\r\n");
 			http_serve_send_file(hsc,resolved_path);
 		}
 		else{
 			if(is_directory(resolved_path))	{
-				printf("OK : is_directory\n");
+				hsc->flag_error = "403";
+				ret = 1;
 			}
 			else	{
-				printf("NO : is_directory || is_regular_file\n");
+				hsc->flag_error = "404";
+				ret = 1;
 			}
 		}
 	}
 	else	{
-		printf("resolved_path = [%s] outside of _CONFIG[PATH] = [%s]\n",resolved_path,_CONFIG[PATH]);
+		printf("resolved_path = [%s] outside of _CONFIG[PATH] = [%s]\n",resolved_path,server_config->path);
+		hsc->flag_error = "410";
+		ret = 1;
 	}
 	debug_status();
 	debug_free(full_path);
 	debug_free(resolved_path);
-	return 0;
+	return ret;
 }
 
 int http_serve_read_headers(HTTP_SERVE_CLIENT hsc)  {
-  printf("http_serve_read_headers\n");
-  //http_serve_info(hsc);
-	if(hsc->client_request == NULL|| hsc->buffer == NULL)	{
-		return 1;
-	}
+	if(http_serve_enable_debug == 1 ) printf("%i : http_serve_read_headers\n",hsc->counter);
+  int ret = 0;
 	char *token,*token1, *aux = NULL,*aux1 =NULL;
 	int length, entrar = 1;
-  printf(" %i : %p\n",hsc->offset,hsc->buffer);
-	while(entrar && (token = http_serve_nextline(hsc)) != NULL)	{
-		length = strlen(token);
-    printf("length %i\n",length);
-		if(length > 0)	{
-			aux1 = strchr(token,':');
-			if(aux1 == NULL)	{
+	if(hsc->client_request == NULL )	{
+		hsc->flag_error = "500";
+		ret = 1;
+	}
+	else	{
+		while(ret == 0 && entrar && (token = http_serve_nextline(hsc)) != NULL)	{
+			length = strlen(token);
+			if(length > 4)	{
 				/*
-					Error there is no :
-					Example:
-					bar: foo 	<- OK
-					bar 			<- This case
-					bar: foo1 <- OK
+					length > 4 is the minimun line length that match key:<space>value valid with key and value of one byte
+					example:
+					A: B\0
+					C: D\0
 				*/
-        return 1;
-			}
-			else	{
-				if(aux1 - token >= length)	{
+				//printf("Validando header : %s\n",token);
+				aux1 = strchr(token,':');
+				if(aux1 == NULL)	{
 					/*
-							There is nothing after ':'
-							Example:
-							bar: foo\r\n	<- OK
-							bor:\r\n	<-	This case
-							bor: \r\n	<-	Also this case
+						Error there is no :
+						Example:
+						bar: foo 	<- OK
+						bar 			<- This case
+						bar: foo1 <- OK
 					*/
-          return 1;
+					//printf("No ':' detected\n");
+					hsc->flag_error = "400";
+	        ret = 1;
 				}
 				else	{
-					/*
-						bar: foo\r\n	<- OK
-					*/
-          printf("Header: %s\n",token);
-    			printf("Key: %s\n",aux1+2);
-					aux1[0] = '\0';
-					http_headers_add(hsc->client_request->_HEADERS,token,aux1+2);
+					//printf("Resta: %i\n",aux1 - token);
+					//printf("length: %i\n",length);
+					if(aux1 - token == 0)	{
+						/*
+						There is no Key, key length = 0 example:
+						: Value
+						*/
+						ret = 1;
+						hsc->flag_error = "400";
+					}
+					else	{
+						if(aux1 - token + 2 >= length)	{
+							/*
+									There is nothing after ':'
+									Example:
+									bar: foo\r\n	<- OK
+									bor:\r\n	<-	This case
+									bor: \r\n	<-	Also this case
+							*/
+							//printf("Empty value header\n");
+							hsc->flag_error = "400";
+			        ret = 1;
+						}
+						else	{
+							/*
+								bar: foo\r\n	<- OK
+							*/
+							//printf("Header correcto\n");
+							aux1[0] = '\0';
+							http_headers_add(hsc->client_request->_HEADERS,token,aux1+2);
+						}
+					}
 				}
+				/*
+				printf("Header: %s\n",token);
+				printf("Key: %s\n",aux1+2);
+				*/
+			}
+			else	{
+				/*
+				this is  length	== 0
+				means and empty line or end of client stream was reached
+				*/
+				entrar = 0;
 			}
 			/*
-			printf("Header: %s\n",token);
-			printf("Key: %s\n",aux1+2);
-			*/
-		}
-		else	{
-			/*
-			this is  length	== 0
-			means and empty line or end of client stream was reached
-			*/
-			entrar = 0;
-		}
-		/*
-			Always debug_free the token even with length == 0
-			because nextline always return a valid pointer
-			while there is more data avaible in his ptr param
+				Always debug_free the token even with length == 0
+				because nextline always return a valid pointer
+				while there is more data avaible in his ptr param
 
-		*/
-		debug_free(token);
+			*/
+			debug_free(token);
+		}
 	}
-	return 0;
+	return ret;
 }
 
-
 void http_serve_client_free(HTTP_SERVE_CLIENT hsc)  {
-  printf("http_serve_client_free\n");
+	if(http_serve_enable_debug == 1 ) printf("%i : http_serve_client_free\n",hsc->counter);
   if(hsc != NULL) {
     if(hsc->buffer != NULL) {
+			//printf("Buffer: procesado\n%s\n",hsc->buffer);
       debug_free(hsc->buffer);
     }
     if(hsc->client_request != NULL )  {
@@ -241,94 +377,67 @@ void http_serve_client_free(HTTP_SERVE_CLIENT hsc)  {
     if(hsc->headers_to_be_send != NULL) {
       http_headers_free(hsc->headers_to_be_send);
     }
+		if(hsc->client != NULL)	{
+			fclose(hsc->client);
+		}
+	  shutdown(hsc->client_fd,SHUT_RDWR);
+		close(hsc->client_fd);
     debug_free(hsc);
   }
-  shutdown(hsc->client_fd,SHUT_RDWR);
-  close(hsc->client_fd);
-  printf("END http_serve_client_free\n");
 }
 
-
-
 int http_serve_send_file(HTTP_SERVE_CLIENT hsc,char *path){
-  printf("http_serve_send_file\n");
+	if(http_serve_enable_debug == 1 ) printf("%i : http_serve_send_file\n",hsc->counter);
 	FILE *fd = NULL;
-	char *buffer = NULL;
-	int length = 0,readed = 0;
-	buffer =  (char*) debug_malloc(64+1);
-	if(buffer != NULL)	{
-		fd = fopen(path,"rb");
-		if(fd != NULL)	{
-			while(!feof(fd))	{
-				readed = fread(buffer,1,64,fd);
-				send(hsc->client_fd,buffer,readed,0);
-			}
-			fclose(fd);
+	char buffer[128];
+	int length = 0,readed = 0, sended = 0;
+	fd = fopen(path,"rb");
+	if(fd != NULL)	{
+		while(sended >= 0  && readed >= 0 && !feof(fd)  )	{
+			readed = fread(buffer,1,128,fd);
+			sended = send(hsc->client_fd,buffer,readed,0);
 		}
-		else	{
-			perror("fopen()");
+		if(sended ==  -1)	{
+			perror("send");
 		}
-		debug_free(buffer);
+		fclose(fd);
 	}
 	else	{
-		perror("debug_malloc()");
+		perror("fopen()");
 	}
 	return 0;
 }
 
 char *http_serve_nextline(HTTP_SERVE_CLIENT hsc)	{
-  printf("http_serve_nextline\n");
-	char *temp = NULL;
-	int aux = hsc->offset;
-	int i = hsc->offset;
-	int length = 0;
-	printf("%i : ptr: %s\n",hsc->offset,hsc->buffer + hsc->offset);
-	while(hsc->buffer[i] != '\r' && hsc->buffer[i] != '\n' && hsc->buffer[i] != '\0')	{
-		i++;
+	if( http_serve_enable_debug == 1 ) printf("%i : http_serve_nextline\n",hsc->counter);
+	int line_length;
+	char *temp = NULL,*line;
+	if(http_serve_enable_debug == 1 ) printf("%i : http_serve_nextline\n",hsc->counter);
+	temp = fgets(hsc->buffer + hsc->offset,server_config->maxlinerequestsize,hsc->client);
+	if(temp == (hsc->buffer + hsc->offset))	{
+		line_length = strlen(temp);
+		hsc->offset += line_length;
+		line = debug_calloc(1,line_length+1);
+		strncpy(line,temp,line_length);
+		trim(line,"\r\n");
+		temp = line;
 	}
-	length = i - aux;
-	printf("%i = %i - %i\n",length,i,aux);
-	temp = debug_malloc(length + 2);
-	switch(hsc->buffer[i])	{
-		case '\0':
-			if(length == 0)	{
-				debug_free(temp);
-				temp = NULL;
-			}
-			else	{
-				memcpy(temp,hsc->buffer+hsc->offset,length);
-				temp[length] = '\0';
-				hsc->offset = i;
-			}
-		break;
-		case 0xD://R
-			memcpy(temp,hsc->buffer+hsc->offset,length);
-			temp[length] = '\0';
-			temp[i+1] = '\0';
-			if(hsc->buffer[i+1] == 0xA)
-				hsc->offset = i+2;
-			else
-			  hsc->offset = i+1;
-
-			//printf("Linea: %s\n",temp);
-		break;
-		case 0xA://N
-			memcpy(temp,hsc->buffer+hsc->offset,length);
-			temp[length] = '\0';
-			hsc->offset = i+1;
-		break;
+	else	{
+		hsc->flag_error = "400";
+		http_serve_client_send_error(hsc);
 	}
 	return temp;
 }
 
 void http_serve_info(HTTP_SERVE_CLIENT hsc) {
+	if( http_serve_enable_debug == 1 ) printf("%i : http_serve_info\n",hsc->counter);
   printf("client_fd %i\n",hsc->client_fd);
   if(hsc->buffer)
     printf("buffer %p : %s\n",hsc->buffer,hsc->buffer);
   http_request_info(hsc->client_request);
   http_headers_info(hsc->headers_to_be_send);
   printf("offset %i\n",hsc->offset);
-  printf("flag_error %i\n",hsc->flag_error);
-  printf("maxrequestsize %i\n",hsc->maxrequestsize);
-  printf("realrequestsize %i\n",hsc->realrequestsize);
+  printf("flag_error %s\n",hsc->flag_error);
+  //printf("maxrequestsize %i\n",hsc->maxrequestsize);
+  //printf("realrequestsize %i\n",hsc->realrequestsize);
 }

@@ -4,9 +4,6 @@
 #include "util.h"
 #include "debug.h"
 
-
-#define CONFIG_VAR_LENGTH_CONST 12
-
 #define	IP 0
 #define PORT 1
 #define PATH 2
@@ -19,14 +16,18 @@
 #define SSLPORT 9
 #define CERTFILE 10
 #define CERTKEY 11
+#define MAXLINEREQUESTSIZE 12
 
+#define CONFIG_VAR_LENGTH_CONST 13
 
 int config_var_length = CONFIG_VAR_LENGTH_CONST;
-char *defaults_config[CONFIG_VAR_LENGTH_CONST] = {"localhost","80","./public","./access.log","30","1048576","","OFF","ON","443","./cert.pem","./key.pem"};
-char *variables_config[CONFIG_VAR_LENGTH_CONST] = {"IP","PORT","PATH","LOGFILE","TIMEOUT","MAXREQUESTSIZE","CACHEFILES","DIRLIST","SSL","SSLPORT","CERTFILE","CERTKEY"};
-int found_config[CONFIG_VAR_LENGTH_CONST] ={0,0,0,0,0,0,0,0,0,0,0,0};
+char *defaults_config[CONFIG_VAR_LENGTH_CONST] = {"localhost","80","./public","./access.log","30","1048576","","OFF","ON","443","./cert.pem","./key.pem","1024"};
+char *variables_config[CONFIG_VAR_LENGTH_CONST] = {"IP","PORT","PATH","LOGFILE","TIMEOUT","MAXREQUESTSIZE","CACHEFILES","DIRLIST","SSL","SSLPORT","CERTFILE","CERTKEY","MAXLINEREQUESTSIZE"};
+int found_config[CONFIG_VAR_LENGTH_CONST] ={0,0,0,0,0,0,0,0,0,0,0,0,0};
 
 char *_CONFIG[CONFIG_VAR_LENGTH_CONST] = {NULL};
+
+int read_config();
 
 int read_config()	{
 	int  i = 0;
@@ -100,7 +101,6 @@ int read_config()	{
 			i++;
 		}
 	}
-
 	_CONFIG[PATH] = realpath(_CONFIG[PATH],NULL);
 	return 0;
 }
