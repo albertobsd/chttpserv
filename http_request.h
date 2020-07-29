@@ -1,5 +1,6 @@
 #pragma once
 #include "http_headers.h"
+#include "http_serve_conf.h"
 #include "debug.h"
 
 #define UNKNOW	0
@@ -20,6 +21,8 @@ typedef struct STR_HTTP_REQUEST {
 	HTTP_HEADERS _GET;
 	HTTP_HEADERS _POST;
 }*HTTP_REQUEST;
+
+//	extern HTTP_SERVE_CONF server_config;
 
 
 HTTP_REQUEST http_request_init();
@@ -98,7 +101,7 @@ int http_request_set_version(HTTP_REQUEST hr,char *version)	{
 
 int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
 	if( http_request_enable_debug == 1 ) printf("http_request_set_uri	\n");
-	int uri_length,ret;
+	int uri_length,ret = 0;
 	int qmark_offset;
 	char *qmark_ptr;
 	if(hr == NULL || uri == NULL)	{
@@ -107,26 +110,36 @@ int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
 	}
 	uri_length = strlen(uri);
 	qmark_ptr = strrchr(uri,'?');
-	if(qmark_ptr != NULL)	{
-		qmark_offset = qmark_ptr -uri;
-		hr->uri = debug_malloc(2 + uri_length - qmark_offset );
-		memcpy(hr->uri,uri,qmark_offset);
-		hr->uri[qmark_offset] = '\0';
-		ret =  http_request_set_GET_values(hr,uri+qmark_offset+1);
+
+	hr->uri = (char*) debug_malloc(server_config->maxlinerequestsize);
+	if(hr->uri == NULL)	{
+		perror("debug_malloc");
+		ret = -1;
 	}
 	else	{
-		if(strcmp(uri,"/") == 0){
-			hr->uri = debug_malloc(14);
-			memcpy(hr->uri,"/index.html",11);
-			hr->uri[11] = '\0';
-			ret = 0;
+		if(qmark_ptr != NULL)	{
+			qmark_offset = qmark_ptr - uri;
+			memcpy(hr->uri,uri,qmark_offset);
+			hr->uri[qmark_offset] = '\0';
+			hr->uri = debug_realloc(hr->uri,qmark_offset+1);
+			ret =  http_request_set_GET_values(hr,uri+qmark_offset+1);
 		}
 		else	{
-			hr->uri = debug_malloc(2 + uri_length);
-			memcpy(hr->uri,uri,uri_length);
-			hr->uri[uri_length] = '\0';
-			ret = 0;
+			if(strcmp(uri,"/") == 0){
+				strcpy(hr->uri,"/index.html");
+				hr->uri[11] = '\0';
+				hr->uri = debug_realloc(hr->uri,12);
+			}
+			else	{
+				memcpy(hr->uri,uri,uri_length);
+				hr->uri[uri_length] = '\0';
+				hr->uri = debug_realloc(hr->uri,uri_length+1);
+			}
 		}
+	}
+	if(hr->uri == NULL)	{
+		perror("debug_realloc");
+		ret = -1;
 	}
 	if( http_request_enable_debug == 1 ) printf("URI: %s\n",hr->uri);
 	return ret;

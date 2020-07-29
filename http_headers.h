@@ -67,14 +67,19 @@ int http_headers_add(HTTP_HEADERS hh,char *key,char *value)	{
 			key_length = strlen(key);
 			value_length = strlen(value);
 			if( http_headers_enable_debug == 1 ) printf("K_l:%i , V_l:%i\n",key_length,value_length);
-			hh->keys[hh->length] = (char*) debug_malloc(key_length + 2);
-			hh->values[hh->length] = (char*) debug_malloc(value_length + 2);
-			if( http_headers_enable_debug == 1 ) printf("k_ptr :  %p, v_ptr : %p\n",hh->keys[hh->length],hh->values[hh->length]);
-			memcpy(hh->keys[hh->length],key,key_length);
-			memcpy(hh->values[hh->length],value,value_length);
-			hh->keys[hh->length][key_length] = '\0';
-			hh->values[hh->length][value_length] = '\0';
-			hh->length++;
+			hh->keys[hh->length] = (char*) debug_malloc(key_length+1);
+			hh->values[hh->length] = (char*) debug_malloc(value_length+1);
+			if(hh->keys[hh->length] == NULL && hh->values[hh->length] == NULL)	{
+				perror("debug_malloc");
+			}
+			else	{
+				if( http_headers_enable_debug == 1 ) printf("k_ptr :  %p, v_ptr : %p\n",hh->keys[hh->length],hh->values[hh->length]);
+				memcpy(hh->keys[hh->length],key,key_length);
+				memcpy(hh->values[hh->length],value,value_length);
+				hh->keys[hh->length][key_length] = '\0';
+				hh->values[hh->length][value_length] = '\0';
+				hh->length++;
+			}
 		}
 		else	{
 			http_headers_set_value_index(hh,i,value);
@@ -108,15 +113,20 @@ char *http_headers_get_value(HTTP_HEADERS hh, char *key)	{
 void http_headers_set_value_index(HTTP_HEADERS hh,int index, char *value)	{
 	if( http_headers_enable_debug == 1 ) printf("http_headers_set_value_index\n");
 	int value_length = 0;
-	if(hh == NULL || value == NULL)	{
+	if(hh == NULL || value == NULL)	{	
 		fprintf(stderr,"Some value is NULL\n");
 		exit(102);
 	}
 	debug_free(hh->values[index]);
 	value_length = strlen(value);
 	hh->values[index] = (char*) debug_malloc(value_length + 2);
-	memcpy(hh->values[hh->length],value,value_length);
-	hh->values[hh->length][value_length] = '\0';
+	if(hh->values[index] == NULL)	{
+		perror("debug_malloc");
+	}
+	else	{
+		memcpy(hh->values[hh->length],value,value_length);
+		hh->values[hh->length][value_length] = '\0';
+	}
 }
 
 void http_headers_increment_max_length(HTTP_HEADERS hh)	{

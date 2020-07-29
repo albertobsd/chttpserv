@@ -10,7 +10,6 @@ int is_regular_file(const char *path);
 int is_directory(const char *path);
 off_t fsize(const char *filename);
 
-
 char *ltrim(char *str, const char *seps)	{
 	size_t totrim;
 	if (seps == NULL) {
@@ -55,7 +54,6 @@ int index_of(char **array, int size, char *lookfor )
     return -1;
 }
 
-
 char *tohex(char *ptr,int length){
   char *buffer;
   int offset = 0;
@@ -76,7 +74,6 @@ char *tohex(char *ptr,int length){
  *  or NULL if the \0 was reached
  *	the function set offset[0] with the current offset
  */
-
 int is_regular_file(const char *path)
 {
     struct stat path_stat;
@@ -90,7 +87,6 @@ int is_directory(const char *path) {
        return 0;
    return S_ISDIR(statbuf.st_mode);
 }
-
 
 off_t fsize(const char *filename) {
     struct stat st;

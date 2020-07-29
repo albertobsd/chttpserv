@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -lpthread
+CFLAGS = -Wno-write-strings -lpthread
 
 default: serv
 

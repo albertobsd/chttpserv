@@ -34,7 +34,7 @@ void* debug_malloc(size_t size)	{
 	void *ptr = NULL;
 	pthread_mutex_lock(&debug_lock);
 	//printf("pthread_mutex_lock\n");
-	ptr =  malloc(size+10);
+	ptr =  malloc(size+5);
 	if(ptr != NULL)	{
 		debug_add(ptr,size);
 	}
@@ -86,6 +86,9 @@ void debug_free(void *ptr)	{
 			free(ptr);
 		}
 	}
+	else	{
+		fprintf(stderr,"debug_free: NULL Pointer");
+	}
 	pthread_mutex_unlock(&debug_lock);
 }
 
@@ -119,17 +122,16 @@ int debug_remove(void *ptr)	{
 	while( !encontrado && i < debug_valores[DEBUG_INDEX] )	{
 		if(ptr == debug_ptr[i])	{
 			encontrado = 1;
-			debug_ptr[i] = NULL;
 			debug_valores[DEBUG_MEMORY] -= debug_ptr_sizes[i];
-			debug_ptr_sizes[i] = 0;
 			debug_valores[DEBUG_ITEMS]--;
+			debug_ptr[i] = NULL;
+			debug_ptr_sizes[i] = 0;
 		}
 		i++;
 	}
 	if(encontrado == 0)	{
 		printf("Pointer not found %p \nMay be you missing change some malloc, calloc realloc?\nOr pointer previously release\n",ptr	);
 		debug_list();
-		exit(0);
 		ret = 1;
 	}
 	return ret;

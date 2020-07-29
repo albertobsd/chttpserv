@@ -38,13 +38,12 @@ int main(int argc,char **argv)	{
 	http_serve_default_errors();	/*	Init default Error messages*/
 	memset(&ip,0,sizeof(struct in_addr));
 	server_config = http_serve_conf_init();
-	debug_status();
 	if ((servfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
 		perror("socket");
 		return 2;
 	}
 	inet_aton(_CONFIG[IP], &ip);
-	socketserver = debug_calloc(1,sizeof(struct sockaddr_in));
+	socketserver = (struct sockaddr_in*) debug_calloc(1,sizeof(struct sockaddr_in));
 	socketserver->sin_family = AF_INET;
 	socketserver->sin_port   = htons((uint16_t)strtol(_CONFIG[PORT],NULL	,10));
 	socketserver->sin_addr.s_addr = ip.s_addr;
@@ -55,9 +54,10 @@ int main(int argc,char **argv)	{
 		exit(3);
 	}
 	b = sizeof(socketserver);
+	debug_status();
 	listen(servfd, BACKLOG);
 	while(1)	{
-		if((clientfd = accept(servfd,(struct sockaddr *)socketserver, &b)) < 0) {
+		if((clientfd = accept(servfd,(struct sockaddr *)socketserver,(socklen_t*) &b)) < 0) {
 			perror("accept");
 			exit(5);
 		}
@@ -86,7 +86,7 @@ int main(int argc,char **argv)	{
 			Values to pass to the pthread
 		*/
 		tothread = NULL;
-		tothread = debug_malloc(sizeof(int)*2);
+		tothread = (int*) debug_malloc(sizeof(int)*2);
 		if(tothread == NULL)	{
 			perror("debug_malloc");
 			exit(8);
@@ -116,12 +116,13 @@ void * thread_process(void *vargp)	{
 	if(aux != NULL)	{
 		clientfd = aux[0];
 		clientcouner = aux[1];
+		printf("Entrando %i\n",clientcouner);
 		debug_free(vargp);
 		/*	free the vargp pointer is no longer needed because
 		we already save the clienfd*/
 		http_serve_client_do(clientfd,clientcouner);
 	}
 	debug_status();
-	printf("Saliendo\n");
+	printf("Saliendo %i\n",clientcouner);
 	pthread_exit(NULL);
 }

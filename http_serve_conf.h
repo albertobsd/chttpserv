@@ -21,7 +21,7 @@ HTTP_SERVE_CONF server_config;
 
 HTTP_SERVE_CONF http_serve_conf_init()	{
 	if(http_serve_conf_enable_verbose == 1 ) printf("http_serve_conf_init\n");
-  HTTP_SERVE_CONF hsconf = debug_calloc(1,sizeof(struct STR_HTTP_SERVE_CONF));
+  HTTP_SERVE_CONF hsconf = (HTTP_SERVE_CONF) debug_calloc(1,sizeof(struct STR_HTTP_SERVE_CONF));
   if(hsconf == NULL)  {
 		perror("debug_calloc");
 		exit(0);
