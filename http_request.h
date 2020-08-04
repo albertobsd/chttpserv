@@ -1,6 +1,7 @@
 #pragma once
 #include "http_headers.h"
 #include "http_serve_conf.h"
+//#include "debug_bt.h"
 #include "debug.h"
 
 #define UNKNOW	0
@@ -39,11 +40,13 @@ char *http_request_supported_version[VERSIONS_LENGTH] = {"","HTTP/1.0","HTTP/1.1
 int http_request_enable_debug = 0;
 
 HTTP_REQUEST http_request_init()	{
-	if( http_request_enable_debug == 1 ) printf("http_request_init\n");
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_init\n");
 	HTTP_REQUEST hr = NULL;
 	hr = (HTTP_REQUEST) debug_calloc(1,sizeof(struct STR_HTTP_REQUEST));
 	if(hr == NULL)	{
+		fprintf(stderr,"debug_calloc\n");
 		perror("debug_calloc");
+		exit(-1);
 	}
 	else	{
 		hr->_HEADERS = http_headers_init();
@@ -54,7 +57,7 @@ HTTP_REQUEST http_request_init()	{
 }
 
 int http_request_set_method(HTTP_REQUEST hr,char *method)	{
-	if( http_request_enable_debug == 1 ) printf("http_request_set_method\n");
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_set_method\n");
 	int  i = 1, entrar = 1;
 	if(hr == NULL || method == NULL)	{
 		fprintf(stderr,"http_request_set_method: some params are NULL\n");
@@ -70,13 +73,13 @@ int http_request_set_method(HTTP_REQUEST hr,char *method)	{
 	if(entrar)	{
 		return 2;
 	}
-	if( http_request_enable_debug == 1 ) printf("Method: %s\n",http_request_supported_version[i]);
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"Method: %s\n",http_request_supported_version[i]);
 	hr->method = i;
 	return 0;
 }
 
 int http_request_set_version(HTTP_REQUEST hr,char *version)	{
-	if( http_request_enable_debug == 1 ) printf("http_request_set_version : %s\n",version);
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_set_version : %s\n",version);
 	int  i = 1, entrar = 1,ret = 0;
 	if(hr == NULL || version == NULL)	{
 		fprintf(stderr,"http_request_set_version: some params are NULL\n");
@@ -93,16 +96,17 @@ int http_request_set_version(HTTP_REQUEST hr,char *version)	{
 		if(entrar)	{
 			ret = -1;
 		}
-		if( http_request_enable_debug == 1 ) printf("Version: %s\n",http_request_supported_version[i]);
+		if( http_request_enable_debug == 1 ) fprintf(stderr,"Version: %s\n",http_request_supported_version[i]);
 		hr->version = i;
 	}
 	return 0;
 }
 
 int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
-	if( http_request_enable_debug == 1 ) printf("http_request_set_uri	\n");
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_set_uri	\n");
 	int uri_length,ret = 0;
 	int qmark_offset;
+	char *temp;
 	char *qmark_ptr;
 	if(hr == NULL || uri == NULL)	{
 		fprintf(stderr,"http_request_set_version: some params are NULL\n");
@@ -113,6 +117,7 @@ int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
 
 	hr->uri = (char*) debug_malloc(server_config->maxlinerequestsize);
 	if(hr->uri == NULL)	{
+		fprintf(stderr,"debug_malloc\n");
 		perror("debug_malloc");
 		ret = -1;
 	}
@@ -121,32 +126,46 @@ int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
 			qmark_offset = qmark_ptr - uri;
 			memcpy(hr->uri,uri,qmark_offset);
 			hr->uri[qmark_offset] = '\0';
-			hr->uri = debug_realloc(hr->uri,qmark_offset+1);
+			temp = debug_realloc(hr->uri,qmark_offset+1);
+			if(temp == NULL)	{
+				fprintf(stderr,"debug_realloc\n");
+				perror("debug_realloc");
+				exit(-1);
+			}
+			hr->uri = temp;
 			ret =  http_request_set_GET_values(hr,uri+qmark_offset+1);
 		}
 		else	{
 			if(strcmp(uri,"/") == 0){
 				strcpy(hr->uri,"/index.html");
 				hr->uri[11] = '\0';
-				hr->uri = debug_realloc(hr->uri,12);
+				temp = debug_realloc(hr->uri,12);
+				if(temp == NULL)	{
+					fprintf(stderr,"debug_realloc\n");
+					perror("debug_realloc");
+					exit(-1);
+				}
+				hr->uri = temp;
 			}
 			else	{
 				memcpy(hr->uri,uri,uri_length);
 				hr->uri[uri_length] = '\0';
-				hr->uri = debug_realloc(hr->uri,uri_length+1);
+				temp = debug_realloc(hr->uri,uri_length+1);
+				if(temp == NULL)	{
+					fprintf(stderr,"debug_realloc\n");
+					perror("debug_realloc");
+					exit(-1);
+				}
+				hr->uri = temp;
 			}
 		}
 	}
-	if(hr->uri == NULL)	{
-		perror("debug_realloc");
-		ret = -1;
-	}
-	if( http_request_enable_debug == 1 ) printf("URI: %s\n",hr->uri);
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"URI: %s\n",hr->uri);
 	return ret;
 }
 
 int http_request_set_GET_values(HTTP_REQUEST hr,char *get_params)	{
-	if( http_request_enable_debug == 1 ) printf("http_request_set_GET_values\n");
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_set_GET_values\n");
 	/*
 	int key_length = 0;
 	int value_length = 0;
@@ -172,7 +191,7 @@ int http_request_set_GET_values(HTTP_REQUEST hr,char *get_params)	{
 }
 
 void http_request_free(HTTP_REQUEST hr)	{
-	if( http_request_enable_debug == 1 ) printf("http_request_free\n");
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_free\n");
 	if(hr != NULL)	{
 		if(hr->uri != NULL)	{
 			debug_free(hr->uri);
@@ -191,7 +210,7 @@ void http_request_free(HTTP_REQUEST hr)	{
 }
 
 void http_request_info(HTTP_REQUEST hr)	{
-	if( http_request_enable_debug == 1 ) printf("http_request_info\n");
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_info\n");
 	if(hr != NULL)	{
 		printf("method %i\n",hr->method);
 		printf("uri %s\n",hr->uri);

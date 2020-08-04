@@ -1,11 +1,13 @@
 #pragma once
-#include"debug.h"
+//#include "debug_bt.h"
+#include "debug.h"
 
 char *ltrim(char *str, const char *seps);
 char *rtrim(char *str, const char *seps);
 char *trim(char *str, const char *seps);
 char *tohex(char *ptr,int length);
-int index_of(char 	**array, int size, char *lookfor );
+char *fdgets(char *buff,int max_length,int fd);
+int index_of(char **array, int size, char *lookfor );
 int is_regular_file(const char *path);
 int is_directory(const char *path);
 off_t fsize(const char *filename);
@@ -93,4 +95,25 @@ off_t fsize(const char *filename) {
     if (stat(filename, &st) == 0)
         return st.st_size;
     return -1;
+}
+
+char *fdgets(char *buff,int max_length,int fd)	{
+	char *temp = NULL;
+	int offset,readed;
+	if(buff != NULL	&& max_length > 0)	{
+		max_length--;
+		offset = 0;
+		readed = 0;
+		temp = buff;
+		do{
+			readed = recv(fd,temp+offset,1,0);
+			putchar('.');
+			offset++;
+		}while(readed >= 0 && offset < max_length -1 && 	temp[offset-1] != '\n' );
+		if(readed == -1)	{
+			perror("recv");
+		}
+		temp[offset] = 0;
+	}
+	return temp;
 }

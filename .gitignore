@@ -1,3 +1,10 @@
 get_petition.txt
 t1.c
+debug.c
+debug_bt.h
 fuzzer.c
+hilos.c
+hilos_problema.c
+t2.c
+test.c
+

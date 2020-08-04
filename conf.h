@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <stdlib.h>
 #include "util.h"
+//#include "debug_bt.h"
 #include "debug.h"
 
 #define	IP 0
@@ -21,7 +22,7 @@
 #define CONFIG_VAR_LENGTH_CONST 13
 
 int config_var_length = CONFIG_VAR_LENGTH_CONST;
-char *defaults_config[CONFIG_VAR_LENGTH_CONST] = {"localhost","80","./public","./access.log","30","1048576","","OFF","ON","443","./cert.pem","./key.pem","1024"};
+char *defaults_config[CONFIG_VAR_LENGTH_CONST] = {"localhost","80","./public","./access.log","10","15375","","OFF","ON","443","./cert.pem","./key.pem","1024"};
 char *variables_config[CONFIG_VAR_LENGTH_CONST] = {"IP","PORT","PATH","LOGFILE","TIMEOUT","MAXREQUESTSIZE","CACHEFILES","DIRLIST","SSL","SSLPORT","CERTFILE","CERTKEY","MAXLINEREQUESTSIZE"};
 int found_config[CONFIG_VAR_LENGTH_CONST] ={0,0,0,0,0,0,0,0,0,0,0,0,0};
 
@@ -60,6 +61,7 @@ int read_config()	{
 					if(key_length > 0 && value_length > 0)	{
 						key = (char*) debug_calloc(key_length+1,1);
 						value = (char*) debug_calloc(value_length+1,1);
+
 						memcpy(key,line,key_length);
 						memcpy(value,aux+1,value_length);
 						trim(key,NULL);

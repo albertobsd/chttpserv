@@ -175,14 +175,15 @@ void debug_status()	{
 }
 
 void debug_list()	{
+	pthread_mutex_lock(&debug_lock);
 	int i = 0,j = 0;
 	while(i < debug_valores[DEBUG_INDEX])	{
-		if(debug_ptr[i] != NULL)	{
+		if(debug_ptr[i] != NULL && j++ && j > 98)	{
 			printf("%i:  ptr: %p , size %i , value %s\n",j,debug_ptr[i],debug_ptr_sizes[i],debug_ptr[i]);
-			j++;
 		}
 		i++;
 	}
+	pthread_mutex_unlock(&debug_lock);
 }
 
 char *debug_tohex(char *ptr,int length)	{
