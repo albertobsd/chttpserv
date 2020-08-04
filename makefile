@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -Wno-write-strings -lpthread -ggdb 
+CFLAGS = -Wno-write-strings -Wno-format-security -pthread -ggdb 
 
 default: serv
 
