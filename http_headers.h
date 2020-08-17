@@ -16,6 +16,7 @@ void http_headers_set_value_index(HTTP_HEADERS hh,int index, char *value);
 void http_headers_increment_max_length(HTTP_HEADERS hh);
 void http_headers_free(HTTP_HEADERS hh);
 void http_headers_info(HTTP_HEADERS hh);
+int http_headers_isset(HTTP_HEADERS hh,char *key);
 
 int http_headers_enable_debug = 0;
 
@@ -44,7 +45,7 @@ HTTP_HEADERS http_headers_init()	{
 /*
  *	http_headers_add add add new <key,value> to hh
  *  if key already exist, his current value is going to be overwriting
- *  the current params key,value are copied in internal struct and are no longer need you can FREE them without worries
+ *  the passed params key,value are copied in internal struct and are no longer need you can FREE them without worries
  */
 int http_headers_add(HTTP_HEADERS hh,char *key,char *value)	{
 	if( http_headers_enable_debug == 1 ) fprintf(stderr,"http_headers_add\n");
@@ -190,4 +191,15 @@ void http_headers_info(HTTP_HEADERS hh)	{
 	else	{
 		fprintf(stderr,"hh is null\n");
 	}
+}
+
+int http_headers_isset(HTTP_HEADERS hh,char *key)	{
+	int entrar = 1, i = 0;
+	while(entrar && i < hh->length)	{
+		if(strcmp(hh->keys[i],key) == 0)	{
+			entrar = 0;
+		}
+		i++;
+	}
+	return !entrar;
 }

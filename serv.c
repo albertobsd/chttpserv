@@ -7,8 +7,6 @@
 #include<unistd.h>
 #include<signal.h>
 #include<stdio.h>
-
-
 /*
 	custom functions
 */
@@ -22,8 +20,12 @@
 
 #define BACKLOG 16
 
-void * thread_process(void *vargp);
+/*
+	Server defined proccess funtion:
+*/
+void *thread_process(void *vargp);
 void *thread_timeout(void *vargp);
+
 
 int main(int argc,char **argv)	{
 	int index, j = 0,s;
@@ -110,7 +112,6 @@ int main(int argc,char **argv)	{
 	//printf("Saliendo\n");
 	return 0;
 }
-
 /*
  *  Main thread process,
  *  vargp  is a pointer passed from	pthread_create function.
@@ -154,10 +155,8 @@ void *thread_process(void *vargp)	{
 	}
 	printf("thread %i pthread_exit\n",clientcouner);
 	debug_status();
-	//debug_list();	
 	pthread_exit(NULL);
 }
-
 /*
 	This function 'thread_timeout' help to close the main thread process
 	if it exceeds the timeout value in seconds-

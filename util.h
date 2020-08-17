@@ -11,6 +11,9 @@ int index_of(char **array, int size, char *lookfor );
 int is_regular_file(const char *path);
 int is_directory(const char *path);
 off_t fsize(const char *filename);
+int url_decode(const char *s, char *dec);
+int ishex(unsigned char x);
+
 
 char *ltrim(char *str, const char *seps)	{
 	size_t totrim;
@@ -116,4 +119,26 @@ char *fdgets(char *buff,int max_length,int fd)	{
 		temp[offset] = 0;
 	}
 	return temp;
+}
+
+
+int ishex(unsigned char x)	{
+	return	(x >= '0' && x <= '9')	|| 	(x >= 'a' && x <= 'f')	|| 	(x >= 'A' && x <= 'F');
+}
+
+int url_decode(const char *s, char *dec)	{
+	char *o;
+	const char *end = s + strlen(s);
+	int c;
+	for (o = dec; s <= end; o++) {
+		c = *s++;
+		if (c == '+') c = ' ';
+		else if (c == '%' && (	!ishex(*s++)	||
+					!ishex(*s++)	||
+					!sscanf(s - 2, "%2x", &c)))
+			return -1;
+
+		if (dec) *o = c;
+	}
+	return o - dec;
 }

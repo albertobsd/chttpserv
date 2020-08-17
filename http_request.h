@@ -179,16 +179,66 @@ int http_request_set_GET_values(HTTP_REQUEST hr,char *get_params)	{
 	while(pivote != NULL)	{	//while there are no more '&'
 		pivote1 = strchr(pivote,'=');
 		if(pivote1 != NULL){
-			pivote1[0] = '\0';
-			http_headers_add(hr->_GET,pivote,pivote1+1);
+			if(pivote1 != pivote)	{
+				pivote1[0] = '\0';
+				http_headers_add(hr->_GET,pivote,pivote1+1);
+			}
+			else	{
+				/*
+				There is no Key so we cant add anything to the POST map
+				*/
+			}
 		}
-		else	{	//No hay =, agregar la variable con value = ""
+		else	{	//There is no  '=' sign , add the variable with empty value ""
 			http_headers_add(hr->_GET,pivote,"");
 		}
 		pivote = (char *)strtok_r(NULL,"& ",&aux);
 	}
 	return 0;
 }
+
+int http_request_set_POST_values(HTTP_REQUEST hr,char *post_params)	{
+	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_set_POST_values\n");
+	int key_length = 0;
+	int value_length = 0;
+	int param_length = 0;
+	char *aux = NULL,*pivote = NULL, *pivote1 = NULL,*value_urldecode = NULL;
+	if(hr == NULL || post_params == NULL)	{
+		fprintf(stderr,"http_request_set_version: some params are NULL\n");
+		return 1;
+	}
+	pivote = (char *) strtok_r(post_params,"&",&aux);
+	while(pivote != NULL)	{	//while there are no more '&'
+		param_length = strlen(pivote);
+		pivote1 = strchr(pivote,'=');
+		if(pivote1 != NULL){
+			key_length = pivote1 - pivote;
+			if(pivote1 != pivote){
+				pivote1[0] = '\0';
+				value_length = strlen(pivote1+1);
+				value_urldecode = debug_malloc(value_length*3 + 1);
+				if( value_urldecode  != NULL && url_decode(pivote1+1,value_urldecode) > 0 ){
+					printf("Adding: %s =  %s\n",pivote,value_urldecode);
+					http_headers_add(hr->_POST,pivote,value_urldecode);
+					debug_free(value_urldecode);
+					debug_status();
+				}
+			}
+			else	{
+				/*
+				There is no Key so we cant add anything to the POST map
+				*/
+			}
+		}
+		else	{	//There is no  '=' sign , add the variable with empty value ""
+		printf("Adding: %s =  \"\"\n",pivote);
+			http_headers_add(hr->_POST,pivote,"");
+		}
+		pivote = (char *)strtok_r(NULL,"& ",&aux);
+	}
+	return 0;
+}
+
 
 void http_request_free(HTTP_REQUEST hr)	{
 	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_free\n");

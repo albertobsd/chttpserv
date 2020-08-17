@@ -6,8 +6,11 @@
 #include "http_headers.h"
 #include "http_request.h"
 #include "http_serve_conf.h"
+#include "http_server_def.h"
 //#include "debug_bt.h"
 #include "debug.h"
+
+
 
 typedef struct STR_HTTP_SERVE_CLIENT {
 	int client_fd;
@@ -33,7 +36,9 @@ int http_serve_client_process(HTTP_SERVE_CLIENT hsc);
 int http_serve_read_method(HTTP_SERVE_CLIENT hsc);
 int http_serve_send_file(HTTP_SERVE_CLIENT hsc,char *path);
 int http_serve_check_and_send(HTTP_SERVE_CLIENT hsc);
+int http_serve_check_and_send_head(HTTP_SERVE_CLIENT hsc);
 int http_serve_read_headers(HTTP_SERVE_CLIENT hsc);
+int http_serve_read_post(HTTP_SERVE_CLIENT hsc);
 int http_serve_default_errors();
 void http_serve_client_send_error_failback(char *error,int fd);
 void http_serve_client_free(HTTP_SERVE_CLIENT hsc);
@@ -42,12 +47,19 @@ void http_serve_info(HTTP_SERVE_CLIENT hsc);
 void http_serve_client_send_error(HTTP_SERVE_CLIENT hsc);
 char *http_serve_nextline(HTTP_SERVE_CLIENT hsc);
 
-#define HTTP_ERROR_LENGTH 40
+#define HTTP_ERROR_LENGTH 41
+#define HTTP_CONTENT_TYPE_ARRAYLENGTH 2
+
+#define HTTP_CONTENT_TYPE_FORM 0
+#define HTTP_CONTENT_TYPE_JSON 1
+
+char *http_serve_content_type_values[] = {"application/x-www-form-urlencoded","application/json"};
 
 int http_serve_default_errors()	{
 	char *base = "HTTP/1.1 %s\r\nServer: C HTTP Server\r\nConnection: close\r\n\r\n<html><head><title>%s</title></head><body><h1>%s</h1></body></html>\n";
-	char *error_number[HTTP_ERROR_LENGTH] = {"400","401","402","403","404","405","406","407","408","409","410","411","412","413","414","415","416","417","418","421","422","423","424","425","426","428","429","431","451",	"500","501","502","503","504","505","506","507","508","510","511"};
+	char *error_number[HTTP_ERROR_LENGTH] = {"200","400","401","402","403","404","405","406","407","408","409","410","411","412","413","414","415","416","417","418","421","422","423","424","425","426","428","429","431","451",	"500","501","502","503","504","505","506","507","508","510","511"};
 	char *error_strings[HTTP_ERROR_LENGTH] = {
+		"200 OK",
 		"400 Bad Request",
 		"401 Unauthorized",
 		"402 Payment Required",
@@ -185,43 +197,50 @@ int http_serve_read_method(HTTP_SERVE_CLIENT hsc) {
 	char *http_tokens[3],*http_token,*http_aux = NULL;
 	int i = 0;	/*	Token number*/
 	line = http_serve_nextline(hsc);
-	token = line;
-	http_token = strtok_r(token," ",&http_aux);
-	while(i < 3 && http_token  != NULL)	{
-		http_tokens[i] = http_token;
-		http_token = strtok_r(NULL," ",&http_aux);
-		i++;
-	}
-	if(i != 3)	{
-		hsc->flag_error = "400";
-		ret = 1;
-	}
-	else	{
-		s = http_request_set_method(hsc->client_request,http_tokens[0]);
-		if(s != 0	){
-			hsc->flag_error = "405";
-			ret = 1;
+	if(line != NULL)	{
+		token = line;
+		http_token = strtok_r(token," ",&http_aux);
+		while(i < 3 && http_token  != NULL)	{
+			http_tokens[i] = http_token;
+			http_token = strtok_r(NULL," ",&http_aux);
+			i++;
 		}
-		else{
-			s = http_request_set_uri(hsc->client_request,http_tokens[1]);
-			if(s != 0	){
-				hsc->flag_error = "500";
-				ret = 1;
-			}
-			//fprintf(stderr,"thread %i path: %s\n",hsc->counter,http_tokens[1]);
-			s = http_request_set_version(hsc->client_request,http_tokens[2]);
+		if(i != 3)	{
+			hsc->flag_error = "400";
+			ret = -1;
+		}
+		else	{
+			s = http_request_set_method(hsc->client_request,http_tokens[0]);
 			if(s != 0	){
 				hsc->flag_error = "405";
-				ret = 1;
+				ret = -1;
+			}
+			else{
+				s = http_request_set_uri(hsc->client_request,http_tokens[1]);
+				if(s != 0	){
+					hsc->flag_error = "500";
+					ret = -1;
+				}
+				//fprintf(stderr,"thread %i path: %s\n",hsc->counter,http_tokens[1]);
+				s = http_request_set_version(hsc->client_request,http_tokens[2]);
+				if(s != 0	){
+					hsc->flag_error = "405";
+					ret = -1;
+				}
 			}
 		}
+		debug_free(line);
 	}
-	debug_free(line);
-	if(http_serve_enable_debug == 1 ) fprintf(stderr,"%i : END http_serve_read_method\n",hsc->counter);
+	else	{
+			hsc->flag_error = "400";
+			ret = -1;
+	}
 	return ret;
 }
 
 int http_serve_client_process(HTTP_SERVE_CLIENT hsc)  {
+	char *temp;
+	int index;
 	if(http_serve_enable_debug == 1 ) fprintf(stderr,"%i : http_serve_client_process\n",hsc->counter);
   int s  = 0;
   s = http_serve_read_method(hsc);
@@ -234,18 +253,85 @@ int http_serve_client_process(HTTP_SERVE_CLIENT hsc)  {
     http_serve_client_send_error(hsc);
   }
 	fprintf(stderr,"thread %i path: %s\n",hsc->counter,hsc->client_request->uri);
-	hsc->buffer = (char*) debug_realloc(hsc->buffer,hsc->offset +1);
-	if(hsc->buffer == NULL)	{
-		perror("debug_realloc");
-		hsc->flag_error = "500";
-		http_serve_client_send_error(hsc);
+	switch(hsc->client_request->method)	{
+		case HEAD:
+			s = http_serve_check_and_send_head(hsc);
+		  if(s != 0)	{
+		    http_serve_client_send_error(hsc);
+		  }
+		break;
+		case GET:
+			s = http_serve_check_and_send(hsc);
+		  if(s != 0)	{
+		    http_serve_client_send_error(hsc);
+		  }
+		break;
+		case POST:
+			index = index_of(urls,BACKEND_LENGTH,hsc->client_request->uri);
+			if(index != -1)	{
+				s = http_serve_read_post(hsc);
+			  if(s != 0)	{
+			    http_serve_client_send_error(hsc);
+			  }
+				temp = funtions[index](NULL,hsc->client_request->_GET,hsc->client_request->_POST,hsc->client_request->_HEADERS,NULL);
+				hsc->flag_error = "200";
+				http_serve_client_send_error(hsc);
+			}
+			else	{
+				hsc->flag_error = "404";
+				http_serve_client_send_error(hsc);
+			}
+		break;
+		default:
+			hsc->flag_error = "405";
+			http_serve_client_send_error(hsc);
+		break;
 	}
-  s = http_serve_check_and_send(hsc);
-  if(s != 0)	{
-    http_serve_client_send_error(hsc);
-  }
 	return s;
 }
+
+
+int http_serve_check_and_send_head(HTTP_SERVE_CLIENT hsc)  {
+	if(http_serve_enable_debug == 1 ) fprintf(stderr,"%i : http_serve_check_and_send\n",hsc->counter);
+	int ret = 0;
+	int n = 0;
+	n = snprintf(hsc->full_path,4096,"%s%s",server_config->path,hsc->client_request->uri);
+	realpath(hsc->full_path,hsc->resolved_path);
+	if(strncmp(hsc->resolved_path,server_config->path,server_config->pathlength) == 0)	{
+		/*
+		resolved_path is in side of server_config->path
+		*/
+		if(is_regular_file(hsc->resolved_path)){
+			dprintf(hsc->client_fd,"HTTP/1.1 200 OK\r\n");
+			dprintf(hsc->client_fd,"Server: C HTTP Server\r\n");
+			dprintf(hsc->client_fd,"Content-Length: %i\r\n",fsize(hsc->resolved_path));
+			dprintf(hsc->client_fd,"Connection: close\r\n");
+			dprintf(hsc->client_fd,"\r\n");
+		}
+		else{
+			if(is_directory(hsc->resolved_path))	{
+
+				hsc->flag_error = "403";
+				ret = -1;
+			}
+			else	{
+
+				hsc->flag_error = "404";
+				ret = -1;
+			}
+		}
+	}
+	else	{
+		/*
+		resolved_path is out side of server_config->path maybe ../.,/.. directory transversal
+		*/
+		hsc->flag_error = "410";
+		ret = -1;
+	}
+	//debug_status();
+	return ret;
+}
+
 
 int http_serve_check_and_send(HTTP_SERVE_CLIENT hsc)  {
 	if(http_serve_enable_debug == 1 ) fprintf(stderr,"%i : http_serve_check_and_send\n",hsc->counter);
@@ -267,12 +353,14 @@ int http_serve_check_and_send(HTTP_SERVE_CLIENT hsc)  {
 		}
 		else{
 			if(is_directory(hsc->resolved_path))	{
+
 				hsc->flag_error = "403";
-				ret = 1;
+				ret = -1;
 			}
 			else	{
+
 				hsc->flag_error = "404";
-				ret = 1;
+				ret = -1;
 			}
 		}
 	}
@@ -281,7 +369,7 @@ int http_serve_check_and_send(HTTP_SERVE_CLIENT hsc)  {
 		resolved_path is out side of server_config->path maybe ../.,/.. directory transversal
 		*/
 		hsc->flag_error = "410";
-		ret = 1;
+		ret = -1;
 	}
 	//debug_status();
 	return ret;
@@ -313,7 +401,7 @@ int http_serve_read_headers(HTTP_SERVE_CLIENT hsc)  {
 				*/
 				//printf("No ':' detected\n");
 				hsc->flag_error = "400";
-        ret = 1;
+        ret = -1;
 			}
 			else	{
 				//printf("Resta: %i\n",aux1 - token);
@@ -323,7 +411,7 @@ int http_serve_read_headers(HTTP_SERVE_CLIENT hsc)  {
 					There is no Key, key length = 0 example:
 					: Value
 					*/
-					ret = 1;
+					ret = -1;
 					hsc->flag_error = "400";
 				}
 				else	{
@@ -337,7 +425,7 @@ int http_serve_read_headers(HTTP_SERVE_CLIENT hsc)  {
 						*/
 						//printf("Empty value header\n");
 						hsc->flag_error = "400";
-		        ret = 1;
+		        ret = -1;
 					}
 					else	{
 						/*
@@ -349,10 +437,6 @@ int http_serve_read_headers(HTTP_SERVE_CLIENT hsc)  {
 					}
 				}
 			}
-			/*
-			printf("Header: %s\n",token);
-			printf("Key: %s\n",aux1+2);
-			*/
 		}
 		else	{
 			/*
@@ -362,10 +446,9 @@ int http_serve_read_headers(HTTP_SERVE_CLIENT hsc)  {
 			entrar = 0;
 		}
 		/*
-			Always debug_free the token even with length == 0
+			Always free the token even with length == 0
 			because nextline always return a valid pointer
 			while there is more data avaible in his ptr param
-
 		*/
 		debug_free(token);
 	}
@@ -428,25 +511,45 @@ int http_serve_send_file(HTTP_SERVE_CLIENT hsc,char *path){
 	return 0;
 }
 
+char *http_serve_nextbytes(HTTP_SERVE_CLIENT hsc,int bytes)	{
+	if( http_serve_enable_debug == 1 ) fprintf(stderr,"%i : http_serve_nextline\n",hsc->counter);
+	int readed;
+	char *temp = NULL;
+	readed = fread(hsc->buffer + hsc->offset,1,bytes,hsc->client);
+	if(readed > 0)	{
+		temp = debug_malloc(readed+1);
+		memcpy(temp,hsc->buffer + hsc->offset,readed);
+		temp[readed] = '\0';
+		hsc->offset += readed;
+	}
+	printf("Readed: %i\n",readed);
+	return temp;
+}
+
 char *http_serve_nextline(HTTP_SERVE_CLIENT hsc)	{
 	if( http_serve_enable_debug == 1 ) fprintf(stderr,"%i : http_serve_nextline\n",hsc->counter);
 	int line_length;
 	char *temp = NULL,*line;
-	temp = fgets(hsc->buffer + hsc->offset,server_config->maxlinerequestsize,hsc->client);
-	if(temp == (hsc->buffer + hsc->offset))	{
-		line_length = strlen(temp);
-		hsc->offset += line_length;
-		line = (char*) debug_calloc(1,line_length+1);
-		strncpy(line,temp,line_length);
-		trim(line,"\r\n");
-		temp = line;
+	int toread = server_config->maxlinerequestsize - hsc->offset;
+	if(toread > 0)	{
+		temp = fgets(hsc->buffer + hsc->offset, toread , hsc->client);
+		if( temp == (hsc->buffer + hsc->offset) )	{
+			line_length = strlen(temp);
+			hsc->offset += line_length;
+			line = (char*) debug_calloc(1,line_length+1);
+			strncpy(line,temp,line_length);
+			trim(line,"\r\n");
+			temp = line;
+		}
 	}
+	/*
 	else	{
 		fprintf(stderr,"fgets\n");
 		perror("fgets");
 		hsc->flag_error = "400";
 		http_serve_client_send_error(hsc);
 	}
+	*/
 	return temp;
 }
 
@@ -459,4 +562,56 @@ void http_serve_info(HTTP_SERVE_CLIENT hsc) {
   http_headers_info(hsc->headers_to_be_send);
   printf("offset %i\n",hsc->offset);
   printf("flag_error %s\n",hsc->flag_error);
+}
+
+int http_serve_read_post(HTTP_SERVE_CLIENT hsc)	{
+	char *aux,*post;
+	int content_length,i,encontrado;
+	aux = http_headers_get_value(hsc->client_request->_HEADERS,"Content-Length");
+	if( aux == NULL )	{
+		hsc->flag_error = "411";
+		return -1;
+	}
+	content_length = strtol(aux,NULL,10);
+	printf("Content-Length: %i\n",content_length);
+	aux = http_headers_get_value(hsc->client_request->_HEADERS,"Content-Type");
+	if( aux == NULL )	{
+		hsc->flag_error = "400";
+		return -1;
+	}
+	i = 0;
+	encontrado = 0;
+	while(!encontrado && i < HTTP_CONTENT_TYPE_ARRAYLENGTH)	{
+		if(strcmp(aux,http_serve_content_type_values[i]) == 0)	{
+			encontrado = 1;
+			i--;
+		}
+		i++;
+	}
+	if(encontrado != 1)	{
+		hsc->flag_error = "400";
+		return -1;
+	}
+	switch(i)	{
+		case HTTP_CONTENT_TYPE_FORM:
+			post = http_serve_nextbytes(hsc,content_length);
+			if(post != NULL)	{
+				http_request_set_POST_values(hsc->client_request,post);
+				debug_free(post);
+			}
+			else	{
+				hsc->flag_error = "400";
+				return -1;
+			}
+		break;
+		case HTTP_CONTENT_TYPE_JSON:
+			hsc->flag_error = "400";
+			return -1;
+		break;
+		default:
+			hsc->flag_error = "400";
+			return -1;
+		break;
+	}
+	return 0;
 }
