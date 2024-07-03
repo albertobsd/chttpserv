@@ -1,6 +1,4 @@
 #pragma once
-//#include "debug_bt.h"
-#include "debug.h"
 
 char *ltrim(char *str, const char *seps);
 char *rtrim(char *str, const char *seps);
@@ -13,6 +11,7 @@ int is_directory(const char *path);
 off_t fsize(const char *filename);
 int url_decode(const char *s, char *dec);
 int ishex(unsigned char x);
+void log_error(const char *file, int line, const char *msg);
 
 
 char *ltrim(char *str, const char *seps)	{
@@ -63,7 +62,7 @@ char *tohex(char *ptr,int length){
   char *buffer;
   int offset = 0;
   unsigned char c;
-  buffer = (char *) debug_malloc((length * 2)+1);
+  buffer = (char *) malloc((length * 2)+1);
   for (int i = 0; i <length; i++) {
     c = ptr[i];
 		sprintf(buffer + offset,"%.2x",c);
@@ -141,4 +140,11 @@ int url_decode(const char *s, char *dec)	{
 		if (dec) *o = c;
 	}
 	return o - dec;
+}
+
+
+void log_error(const char *file, int line, const char *msg) {
+    fprintf(stderr, "Error in file %s at line %d: %s\n", file, line, msg);
+	fflush(stderr);
+    perror("System error");
 }

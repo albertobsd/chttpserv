@@ -1,8 +1,6 @@
 #pragma once
 #include "http_headers.h"
 #include "http_serve_conf.h"
-//#include "debug_bt.h"
-#include "debug.h"
 
 #define UNKNOW	0
 #define GET		1
@@ -42,10 +40,10 @@ int http_request_enable_debug = 0;
 HTTP_REQUEST http_request_init()	{
 	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_init\n");
 	HTTP_REQUEST hr = NULL;
-	hr = (HTTP_REQUEST) debug_calloc(1,sizeof(struct STR_HTTP_REQUEST));
+	hr = (HTTP_REQUEST) calloc(1,sizeof(struct STR_HTTP_REQUEST));
 	if(hr == NULL)	{
-		fprintf(stderr,"debug_calloc\n");
-		perror("debug_calloc");
+		fprintf(stderr,"calloc\n");
+		perror("calloc");
 		exit(-1);
 	}
 	else	{
@@ -115,10 +113,10 @@ int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
 	uri_length = strlen(uri);
 	qmark_ptr = strrchr(uri,'?');
 
-	hr->uri = (char*) debug_malloc(server_config->maxlinerequestsize);
+	hr->uri = (char*) malloc(server_config->maxlinerequestsize);
 	if(hr->uri == NULL)	{
-		fprintf(stderr,"debug_malloc\n");
-		perror("debug_malloc");
+		fprintf(stderr,"malloc\n");
+		perror("malloc");
 		ret = -1;
 	}
 	else	{
@@ -126,10 +124,10 @@ int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
 			qmark_offset = qmark_ptr - uri;
 			memcpy(hr->uri,uri,qmark_offset);
 			hr->uri[qmark_offset] = '\0';
-			temp = debug_realloc(hr->uri,qmark_offset+1);
+			temp = realloc(hr->uri,qmark_offset+1);
 			if(temp == NULL)	{
-				fprintf(stderr,"debug_realloc\n");
-				perror("debug_realloc");
+				fprintf(stderr,"realloc\n");
+				perror("realloc");
 				exit(-1);
 			}
 			hr->uri = temp;
@@ -139,10 +137,10 @@ int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
 			if(strcmp(uri,"/") == 0){
 				strcpy(hr->uri,"/index.html");
 				hr->uri[11] = '\0';
-				temp = debug_realloc(hr->uri,12);
+				temp = realloc(hr->uri,12);
 				if(temp == NULL)	{
-					fprintf(stderr,"debug_realloc\n");
-					perror("debug_realloc");
+					fprintf(stderr,"realloc\n");
+					perror("realloc");
 					exit(-1);
 				}
 				hr->uri = temp;
@@ -150,10 +148,10 @@ int http_request_set_uri(HTTP_REQUEST hr,char *uri)	{
 			else	{
 				memcpy(hr->uri,uri,uri_length);
 				hr->uri[uri_length] = '\0';
-				temp = debug_realloc(hr->uri,uri_length+1);
+				temp = realloc(hr->uri,uri_length+1);
 				if(temp == NULL)	{
-					fprintf(stderr,"debug_realloc\n");
-					perror("debug_realloc");
+					fprintf(stderr,"realloc\n");
+					perror("realloc");
 					exit(-1);
 				}
 				hr->uri = temp;
@@ -216,12 +214,11 @@ int http_request_set_POST_values(HTTP_REQUEST hr,char *post_params)	{
 			if(pivote1 != pivote){
 				pivote1[0] = '\0';
 				value_length = strlen(pivote1+1);
-				value_urldecode = debug_malloc(value_length*3 + 1);
+				value_urldecode = malloc(value_length*3 + 1);
 				if( value_urldecode  != NULL && url_decode(pivote1+1,value_urldecode) > 0 ){
 					printf("Adding: %s =  %s\n",pivote,value_urldecode);
 					http_headers_add(hr->_POST,pivote,value_urldecode);
-					debug_free(value_urldecode);
-					debug_status();
+					free(value_urldecode);
 				}
 			}
 			else	{
@@ -244,7 +241,7 @@ void http_request_free(HTTP_REQUEST hr)	{
 	if( http_request_enable_debug == 1 ) fprintf(stderr,"http_request_free\n");
 	if(hr != NULL)	{
 		if(hr->uri != NULL)	{
-			debug_free(hr->uri);
+			free(hr->uri);
 		}
 		if(hr->_GET != NULL)	{
 			http_headers_free(hr->_GET);
@@ -255,7 +252,7 @@ void http_request_free(HTTP_REQUEST hr)	{
 		if(hr->_POST != NULL)	{
 			http_headers_free(hr->_POST);
 		}
-		debug_free(hr);
+		free(hr);
 	}
 }
 

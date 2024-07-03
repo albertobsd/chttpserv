@@ -8,10 +8,10 @@ just compile
 $ make
 ```
 
-edit  the serv.conf
+edit the config `.serv` file
 
 ```
-$ vi serv.conf
+$ vi .serv
 ```
 
 edit your webpage in `./public/`

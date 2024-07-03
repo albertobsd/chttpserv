@@ -1,6 +1,5 @@
 #pragma once
 #include "conf.h"
-#include "debug.h"
 
 typedef struct STR_HTTP_SERVE_CONF {
 	char *ip;
@@ -22,7 +21,7 @@ HTTP_SERVE_CONF server_config;
 
 HTTP_SERVE_CONF http_serve_conf_init()	{
 	if(http_serve_conf_enable_verbose == 1 ) fprintf(stderr,"http_serve_conf_init\n");
-  HTTP_SERVE_CONF hsconf = (HTTP_SERVE_CONF) debug_calloc(1,sizeof(struct STR_HTTP_SERVE_CONF));
+  HTTP_SERVE_CONF hsconf = (HTTP_SERVE_CONF) calloc(1,sizeof(struct STR_HTTP_SERVE_CONF));
   if(hsconf == NULL)  {
 		perror("calloc");
 		exit(0);

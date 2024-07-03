@@ -2,8 +2,6 @@
 #include <limits.h>
 #include <stdlib.h>
 #include "util.h"
-//#include "debug_bt.h"
-#include "debug.h"
 
 #define	IP 0
 #define PORT 1
@@ -31,9 +29,10 @@ char *_CONFIG[CONFIG_VAR_LENGTH_CONST] = {NULL};
 int read_config();
 
 int read_config()	{
+	int len;
 	int  i = 0;
 	FILE *config = NULL;
-	config = fopen("serv.conf","r");
+	config = fopen(".serv","r");
 	if(config == NULL)	{
 		while(i < CONFIG_VAR_LENGTH_CONST)	{
 			_CONFIG[i] = defaults_config[i];
@@ -44,7 +43,7 @@ int read_config()	{
 	else	{
 		int line_length = 0,key_length = 0, value_length = 0,index_temp = 0;
 		char *line = NULL,*aux,*key = NULL,*value = NULL;
-		line = (char*) debug_malloc(1024);
+		line = (char*) malloc(1024);
 		while(fgets(line,1024,config) != NULL && !feof(config))	{
 			trim(line,NULL);
 			line_length = strlen(line);
@@ -59,8 +58,8 @@ int read_config()	{
 					*/
 					//printf("%i - %i\n",key_length,value_length);
 					if(key_length > 0 && value_length > 0)	{
-						key = (char*) debug_calloc(key_length+1,1);
-						value = (char*) debug_calloc(value_length+1,1);
+						key = (char*) calloc(key_length+1,1);
+						value = (char*) calloc(value_length+1,1);
 
 						memcpy(key,line,key_length);
 						memcpy(value,aux+1,value_length);
@@ -74,11 +73,11 @@ int read_config()	{
 							//	printf("Key found [%s] index %i : %s\n",key,index_temp,variables_config[index_temp]);
 							found_config[index_temp] = 1;
 							_CONFIG[index_temp] = value;
-							debug_free(key);
+							free(key);
 						}
 						else	{
-							debug_free(key);
-							debug_free(value);
+							free(key);
+							free(value);
 							//printf("Ignoring line with unexpected key: %s\n",line);
 						}
 					}
@@ -94,11 +93,13 @@ int read_config()	{
 				//printf("Ignored comment line: %s\n",line);
 			}
 		}
-		debug_free(line);
+		free(line);
 		fclose(config);
 		while(i < CONFIG_VAR_LENGTH_CONST)	{
 			if(found_config[i] == 0)	{
-				_CONFIG[i] = defaults_config[i];
+				len = strlen(defaults_config[i]);
+				_CONFIG[i] = malloc(len + 1);
+				memcpy(_CONFIG[i],defaults_config[i],len);
 			}
 			i++;
 		}

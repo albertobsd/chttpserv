@@ -1,0 +1,15 @@
+#comment Line
+IP=127.0.0.1
+PORT=8080
+PATH = ./public
+TIMEOUT = 15
+MAXREQUESTSIZE = 15360
+MAXLINEREQUESTSIZE = 2048
+
+# Other values
+# to list in all interfaces set ip to 0.0.0.0
+#IP=0.0.0.0
+
+
+# NOT IMPLEMENTED YET
+#LOGFILE = ./log

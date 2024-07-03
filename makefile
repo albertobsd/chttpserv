@@ -14,5 +14,3 @@ fuzzer: fuzzer.c
 clean:
 	clear
 	rm serv
-	rm logs.txt
-	touch logs.txt
